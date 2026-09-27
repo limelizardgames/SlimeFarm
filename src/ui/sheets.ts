@@ -321,10 +321,10 @@ function buildShop(): string {
   }
   h += `</div><p class="fine">Long-press any slime on your ranch to dress it up.</p>`;
 
-  h += `<div class="section-title">${icon('paint')} Ranch Themes</div><div class="cos-grid">`;
+  h += `<div class="section-title">${icon('paint')} Pen Themes</div><p class="fine" style="margin:0 0 8px">Themes apply to the pen you're looking at, so every pen can have its own look.</p><div class="cos-grid">`;
   for (const t of THEMES) {
     const owned = s.themes.includes(t.id);
-    const on = s.theme === t.id;
+    const on = game.activeTheme() === t.id;
     h += `<div class="cos-card ${on ? 'on' : ''}"><div class="prev"><div class="theme-swatch" style="background:linear-gradient(180deg,${t.sky[0]},${t.sky[2]} 55%,${t.hills[1]} 55%,${t.ground[1]})"></div></div><b>${t.name}</b>
       ${on ? `<button class="btn small gray" data-act="noop">Active</button>` : owned ? `<button class="btn small" data-act="theme" data-id="${t.id}">Use</button>` : `<button class="btn small blue" data-act="theme" data-id="${t.id}" data-gem="${t.price}"><span class="cost">${icon('gem')}${t.price}</span></button>`}</div>`;
   }

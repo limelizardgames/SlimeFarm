@@ -151,7 +151,7 @@ export interface UpgradeDef {
 
 export const UPGRADES: UpgradeDef[] = [
   { id: 'goo', name: 'Gourmet Feed', icon: '🍯', baseCost: 60, growth: 1.85, max: 200, desc: (l) => `All slimes produce +25% goo. Now ×${(1.25 ** l).toFixed(2)}` },
-  { id: 'pen', name: 'Bigger Pen', icon: '🏡', baseCost: 120, growth: 2.3, max: 16, desc: (l) => `Room for one more slime. Capacity ${8 + l} → ${8 + l + 1}` },
+  { id: 'pen', name: 'Bigger Pen', icon: '🏡', baseCost: 120, growth: 2.3, max: 16, desc: (l) => `Every pen holds one more slime. ${8 + l} → ${8 + l + 1} per pen` },
   { id: 'egg', name: 'Egg Incubator', icon: '🥚', baseCost: 200, growth: 2.0, max: 20, desc: (l) => `Free eggs hatch faster. Every ${eggInterval(l).toFixed(1)}s` },
   { id: 'hatch', name: 'Nutrient Yolk', icon: '✨', baseCost: 5_000, growth: 14, max: 6, desc: (l) => `Eggs hatch at a higher level. Now Lv ${1 + l}` },
   { id: 'tap', name: 'Tickle Glove', icon: '🧤', baseCost: 80, growth: 2.1, max: 50, desc: (l) => `Tapping a slime squeezes out ${tapSeconds(l)}s of its goo` },
@@ -214,15 +214,16 @@ export type Reward =
   | { kind: 'goo'; minutes: number }
   | { kind: 'gems'; amount: number }
   | { kind: 'chest'; chest: ChestKind }
-  | { kind: 'boost'; minutes: number };
+  | { kind: 'boost'; minutes: number }
+  | { kind: 'food'; food: FoodId; amount: number };
 
 export const DAILY_REWARDS: Reward[] = [
   { kind: 'goo', minutes: 20 },
   { kind: 'gems', amount: 10 },
-  { kind: 'boost', minutes: 30 },
+  { kind: 'food', food: 'jelly', amount: 2 },
   { kind: 'gems', amount: 20 },
   { kind: 'chest', chest: 'rare' },
-  { kind: 'goo', minutes: 120 },
+  { kind: 'food', food: 'apple', amount: 1 },
   { kind: 'chest', chest: 'epic' },
 ];
 
@@ -243,3 +244,55 @@ export const AD_GEMS_DAILY_CAP = 5;
 export const INTERSTITIAL_MIN_GAP = 3 * 60_000;
 export const INTERSTITIAL_GRACE = 5 * 60_000; // no forced ads in the first minutes of a session
 export const FESTIVAL_MIN_GOO = 5e7;
+
+// ── Elements (a species' base-element ancestry; drives weather bonuses) ──
+const elementCache: Record<string, string[]> = {};
+export function elementsOf(id: string): string[] {
+  if (elementCache[id]) return elementCache[id];
+  const sp = SPECIES[id];
+  const out = sp.parents ? Array.from(new Set([...elementsOf(sp.parents[0]), ...elementsOf(sp.parents[1])])) : [id];
+  return (elementCache[id] = out);
+}
+
+// ── Pens ────────────────────────────────────────────────────
+export const MAX_PENS = 6;
+export const PEN_NAMES = ['Meadow Pen', 'Sunny Paddock', 'Bubble Yard', 'Jelly Corral', 'Starlight Field', 'Royal Garden'];
+/** Cost of the n-th pen (index 1 = the 2nd pen). */
+export const penCost = (n: number) => Math.floor(4_000 * 30 ** (n - 1));
+/** Slimes of one species that share a pen get a Harmony bonus. */
+export const HARMONY_MIN = 3;
+export const HARMONY_BONUS = 0.2;
+
+// ── Snacks (feeding) ────────────────────────────────────────
+export type FoodId = 'berry' | 'jelly' | 'apple';
+export interface FoodDef { id: FoodId; name: string; happy: number; desc: string; gems: number; color: string }
+export const FOODS: Record<FoodId, FoodDef> = {
+  berry: { id: 'berry', name: 'Goo Berry', happy: 35, gems: 0, color: '#ff4d7a', desc: '+35 happiness' },
+  jelly: { id: 'jelly', name: 'Jelly Bean', happy: 60, gems: 5, color: '#9a6bff', desc: '+60 happiness & 2× goo for 5 min' },
+  apple: { id: 'apple', name: 'Golden Apple', happy: 100, gems: 25, color: '#ffc400', desc: 'Full happiness & +1 level!' },
+};
+export const RUSH_MINUTES = 5;
+/** Happiness drains from 100 to 0 over this many seconds. */
+export const HAPPY_DRAIN_SECONDS = 3 * 3600;
+export const PET_HAPPY = 6;
+/** Production multiplier at full happiness is 1 + HAPPY_MAX_BONUS. */
+export const HAPPY_MAX_BONUS = 0.5;
+
+// ── Weather ────────────────────────────────────────────────
+export type WeatherId = 'sunny' | 'cloudy' | 'rain' | 'storm' | 'snow' | 'windy' | 'rainbow';
+export interface WeatherDef {
+  id: WeatherId; name: string; emoji: string; favors: string[]; mult: number; weight: number; minutes: [number, number]; blurb: string;
+}
+export const WEATHER: Record<WeatherId, WeatherDef> = {
+  sunny: { id: 'sunny', name: 'Sunny', emoji: '☀️', favors: ['mint', 'ember'], mult: 1.3, weight: 30, minutes: [4, 7], blurb: 'Plant and fire slimes soak up the sun.' },
+  cloudy: { id: 'cloudy', name: 'Cloudy', emoji: '⛅', favors: ['terra'], mult: 1.3, weight: 18, minutes: [3, 5], blurb: 'Earthy slimes love a cool, grey day.' },
+  rain: { id: 'rain', name: 'Rain', emoji: '🌧️', favors: ['aqua', 'mint'], mult: 1.5, weight: 16, minutes: [3, 5], blurb: 'Water and plant slimes splash happily.' },
+  storm: { id: 'storm', name: 'Thunderstorm', emoji: '⛈️', favors: ['ember', 'zephyr'], mult: 1.6, weight: 7, minutes: [2, 4], blurb: 'Lightning supercharges spark and wind slimes.' },
+  snow: { id: 'snow', name: 'Snowfall', emoji: '❄️', favors: ['frost'], mult: 1.5, weight: 10, minutes: [3, 5], blurb: 'Frosty slimes thrive in the cold.' },
+  windy: { id: 'windy', name: 'Breezy', emoji: '🍃', favors: ['zephyr', 'terra'], mult: 1.4, weight: 12, minutes: [3, 5], blurb: 'Air slimes ride the gusts.' },
+  rainbow: { id: 'rainbow', name: 'Rainbow', emoji: '🌈', favors: [], mult: 1.25, weight: 0, minutes: [2, 3], blurb: 'Every slime +25% and shiny chances doubled!' },
+};
+
+// ── Mini games ─────────────────────────────────────────────
+export const MAX_TICKETS = 3;
+export const TICKET_REGEN_MS = 20 * 60_000;

@@ -17,15 +17,19 @@ Built with **TypeScript + Vite + HTML Canvas**, wrapped for **iOS & Android with
 | **Slimedex** | Each discovery gives gems and +2% goo. Hints show recipes once you've found both ingredients. |
 | **Tap / Long-press** | Tap a slime to squeeze out bonus goo. Long-press it for details, hats, and selling. Drag it to the SELL bubble to sell it. |
 | **Offline earnings** | Goo keeps accumulating while you're away. The Goo Vault upgrade raises the cap. |
+| **Pens** | Build up to 6 pens. Each has its own name and theme, and every pen produces goo even while you're looking at another. Keep 3+ of one species in a pen for a **Harmony** bonus (+20%). Swipe sideways or use the ‹ › bar to switch pens; move slimes from their detail card. |
+| **Petting & snacks** | Each slime has happiness (up to +50% goo). It drains slowly and is restored by petting (tap, with combo hearts) and snacks dragged from the tray: Goo Berry, Jelly Bean (sugar rush, 2× for 5 min) and Golden Apple (+1 level). Hungry slimes show a thought bubble. |
+| **Weather** | Sunny, cloudy, rain, thunderstorms, snow, wind and rainbows cycle every few minutes, each with full visual effects. Each weather boosts slimes of matching elements (fusions count every element in their family tree). Rainbows boost all slimes and double shiny chances. |
+| **Mini games** | **Goo Catch** (catch falling goo, dodge rocks) and **Slime Match** (memory pairs). Plays cost tickets (3 max, +1 every 20 min, or +1 per rewarded ad). Rewards are goo, snacks, Golden Apples and gems. |
 | **Grand Festival** | Prestige: reset your ranch to earn Blue Ribbons (+10% goo each, permanent). |
 | **Cosmetics** | 12 hats and 5 ranch themes: Meadow, Sunset, Frosty, Moonlit, Candy. |
-| **Retention** | 7-day daily login calendar, free chest every 4 h, and a gift balloon that drifts across the sky. |
+| **Retention** | 7-day daily login calendar, free chest every 4 h, a gift balloon that drifts across the sky, and hungry slimes that miss you. |
 
 ## Monetisation
 
 | Type | Where |
 |---|---|
-| **Rewarded ads** (opt-in) | 2× Goo Rush (+15 min, stacks to 4 h) · 2× offline earnings · Bonus chest (10 min cooldown) · Free gems (5/day) · 5× gift balloon |
+| **Rewarded ads** (opt-in) | 2× Goo Rush (+15 min, stacks to 4 h) · 2× offline earnings · Bonus chest (10 min cooldown) · Free gems (5/day) · 5× gift balloon · +1 game ticket · 2× game rewards |
 | **Interstitials** | Only on closing a menu. At least 3 min apart, never in the first 5 min of a session, never for Remove Ads owners. |
 | **Banner** | Supported but **off** by default (`BANNER_ENABLED` in `src/config.ts`). It hurts the look of the ranch. |
 | **IAP: Remove Ads** $2.99 | Removes forced ads and adds +50 gems. Rewarded ads stay available as an optional bonus. |
@@ -87,6 +91,8 @@ src/
   render/slimeArt.ts  procedural slime renderer (body, face, patterns, toppers, hats)
   render/ranch.ts     the ranch scene: hop physics, particles, drag-to-merge input
   render/background.ts themed sky / hills / fence painter
+  render/weather.ts   rain, storms, snow, wind, rainbows
+  ui/minigames.ts     Goo Catch & Slime Match
   services/           ads, IAP, audio synth, haptics, durable storage
   ui/                 HUD, bottom sheets, modals, icons
   config.ts           ← ad unit IDs, product IDs, prices

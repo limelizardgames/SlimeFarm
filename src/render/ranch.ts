@@ -3,6 +3,8 @@ import type { SlimeData, MergeOutcome } from '../game/game';
 import { drawSlime, paletteFor, star4, star5, type Mood } from './slimeArt';
 import { paintBackground } from './background';
 import { lighten, rgba } from './color';
+import { WeatherFx } from './weather';
+import { FOODS, type FoodId, type WeatherId } from '../game/data';
 
 // ─────────────────────────────────────────────────────────────
 //  Types
@@ -48,6 +50,8 @@ export interface RanchHandlers {
   releaseValue(uid: number): number;
   longPress(uid: number): void;
   gift(): void;
+  swipe(dir: number): void;
+  isRushing(sl: SlimeData): boolean;
   sfx(name: string): void;
   haptic(kind: 'light' | 'medium' | 'heavy' | 'success'): void;
   fmt(n: number): string;
@@ -87,6 +91,9 @@ export class Ranch {
   gift: { x: number; y: number; t: number; dir: number; alive: boolean; pop: number } | null = null;
   giftTimer = 70;
   paused = false;
+  wx = new WeatherFx();
+  foodHover: number | null = null;
+  private combo = { uid: -1, n: 0, t: 0 };
 
   constructor(canvas: HTMLCanvasElement, private h: RanchHandlers) {
     this.canvas = canvas;
@@ -187,6 +194,7 @@ export class Ranch {
 
     for (const e of this.ents.values()) this.updateEnt(e, dt);
     this.updateGift(dt);
+    this.wx.update(dt, this.wxHost());
 
     // long press
     if (this.press && !this.press.dragging && this.press.uid != null && this.press.lp > 0) {
@@ -227,7 +235,8 @@ export class Ranch {
     e.blinkT -= dt;
     if (e.blinkT < 0) { e.blink = 1; e.blinkT = rand(2, 5); }
     e.blink = Math.max(0, e.blink - dt * 7);
-    if (e.moodT > 0) { e.moodT -= dt; if (e.moodT <= 0) e.mood = 'happy'; }
+    if (e.moodT > 0) e.moodT -= dt;
+    if (e.moodT <= 0) e.mood = e.data.happy < 20 ? 'sleepy' : 'happy';
 
     if (e.egg > 0) {
       // falling egg → bounce → crack
@@ -334,6 +343,7 @@ export class Ranch {
     if (e.ambient < 0) {
       e.ambient = rand(0.8, 2.2);
       this.speciesParticle(e, r);
+      if (e.data.happy > 85 && Math.random() < 0.35) this.emit('heart', e.x + rand(-r, r) * 0.5, e.y - r * 1.8 - e.z, rand(-8, 8), -30, '#ff8fb8', 1.2, 4, -5);
       if (e.data.variant > 0) this.emit('star', e.x + rand(-r, r), e.y - rand(0, r * 1.6) - e.z, 0, -10, e.data.variant === 2 ? '#fff1a0' : '#ffffff', 0.9, rand(3, 6));
     }
   }
@@ -470,7 +480,12 @@ export class Ranch {
       const p = this.press;
       if (!p || p.id !== ev.pointerId) return;
       this.press = null;
-      if (p.uid == null) return;
+      if (p.uid == null) {
+        const [x, y] = this.toLocal(ev);
+        const dx = x - p.x, dy = y - p.y;
+        if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5 && performance.now() - p.t < 700) this.h.swipe(dx < 0 ? 1 : -1);
+        return;
+      }
       const e = this.ents.get(p.uid);
       if (!e) return;
       if (!p.dragging) {
@@ -500,11 +515,18 @@ export class Ranch {
   private tapEnt(e: Ent) {
     const g = this.h.tap(e.uid);
     const r = this.radius(e.data);
+    const now = performance.now();
+    if (this.combo.uid === e.uid && now - this.combo.t < 900) this.combo.n++;
+    else this.combo = { uid: e.uid, n: 1, t: now };
+    this.combo.t = now;
+    const n = this.combo.n;
     e.sqV += 9;
     e.mood = 'excited';
     e.moodT = 0.7;
+    e.leanV += (Math.random() < 0.5 ? -1 : 1) * 3;
     this.floatText(e.x, e.y - r * 2.1, '+' + this.h.fmt(g), '#fff7c2', 20);
-    for (let i = 0; i < 3; i++) this.emit('heart', e.x + rand(-r, r) * 0.6, e.y - r * 1.4, rand(-30, 30), rand(-90, -60), '#ff6fa8', 0.9, rand(5, 8), 60);
+    if (n >= 3) this.floatText(e.x + r * 1.2, e.y - r * 1.4, n >= 10 ? `Purr ×${n}! ♥` : `Purr ×${n}`, '#ffc2dc', 14 + Math.min(10, n));
+    for (let i = 0; i < 3 + Math.min(6, n); i++) this.emit('heart', e.x + rand(-r, r) * 0.6, e.y - r * 1.4, rand(-30, 30), rand(-90, -60), '#ff6fa8', 0.9, rand(5, 8), 60);
     this.burst(e.x, e.y - r * 0.8, paletteFor(SPECIES[e.data.sp], e.data.variant).c1, 6, 'goo', 120);
     this.h.sfx('squish');
     this.h.haptic('light');
@@ -591,6 +613,7 @@ export class Ranch {
     else { ctx.fillStyle = '#6cc8ff'; ctx.fillRect(0, 0, W, H); }
 
     this.drawSkyLife(ctx);
+    this.wx.drawBack(ctx, this.wxHost());
 
     // entities sorted by depth
     const list = [...this.ents.values()].sort((a, b) => (a.state === 'held' ? 1 : 0) - (b.state === 'held' ? 1 : 0) || a.y - b.y);
@@ -611,6 +634,7 @@ export class Ranch {
 
     this.drawHover(ctx);
     this.drawParticles(ctx);
+    this.wx.drawFront(ctx, this.wxHost());
     this.drawGift(ctx);
 
     if (this.flash > 0) {
@@ -681,6 +705,24 @@ export class Ranch {
     const gy = e.y - e.z;
     const lookX = e.state === 'held' ? e.look[0] : Math.sin(this.time * 0.7 + e.seed) * 0.6 + e.facing * 0.2;
 
+    if (this.h.isRushing(e.data)) {
+      const pulse = 1 + Math.sin(this.time * 8) * 0.08;
+      const g = ctx.createRadialGradient(e.x, gy - r * 0.7, r * 0.4, e.x, gy - r * 0.7, r * 1.7 * pulse);
+      g.addColorStop(0, 'rgba(255,150,220,0.45)');
+      g.addColorStop(1, 'rgba(180,120,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(e.x, gy - r * 0.7, r * 1.7 * pulse, 0, TAU); ctx.fill();
+    }
+    if (this.foodHover === e.uid) {
+      ctx.save();
+      ctx.strokeStyle = '#ffd6ea';
+      ctx.shadowColor = '#ff8fc0';
+      ctx.shadowBlur = 14;
+      ctx.lineWidth = 3.5;
+      const p = 1 + Math.sin(this.time * 10) * 0.05;
+      ctx.beginPath(); ctx.ellipse(e.x, e.y + 1, r * 1.3 * p, r * 0.38 * p, 0, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
     // aura for shiny / golden
     if (e.data.variant > 0) {
       const g = ctx.createRadialGradient(e.x, gy - r * 0.8, r * 0.3, e.x, gy - r * 0.8, r * 1.9);
@@ -711,7 +753,61 @@ export class Ranch {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(e.data.lvl), bx, by + 1);
+
+    // hungry thought bubble
+    if (e.data.happy < 25 && e.state === 'free') {
+      const tx = e.x - r * 0.9, ty = gy - r * 2.3 + Math.sin(this.time * 2 + e.seed) * 3;
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.strokeStyle = '#2b1740';
+      ctx.lineWidth = 2;
+      for (const [dx, dy, rr] of [[r * 0.45, r * 0.75, 3], [r * 0.25, r * 0.45, 4.5]] as [number, number, number][]) {
+        ctx.beginPath(); ctx.arc(tx + dx, ty + dy, rr, 0, TAU); ctx.fill(); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.ellipse(tx, ty, 16, 13, 0, 0, TAU); ctx.fill(); ctx.stroke();
+      // tiny berry
+      ctx.fillStyle = FOODS.berry.color;
+      for (const [bx2, by2] of [[-4, 1], [4, 1], [0, 5]]) { ctx.beginPath(); ctx.arc(tx + bx2, ty + by2 - 1, 4, 0, TAU); ctx.fill(); }
+      ctx.fillStyle = '#5cc94b';
+      ctx.beginPath(); ctx.ellipse(tx + 1, ty - 7, 4, 2, -0.4, 0, TAU); ctx.fill();
+    }
   }
+
+  // ── feeding, weather & helpers used by the UI ─────────────
+  private wxHost() {
+    return {
+      W: this.W, H: this.H, horizon: this.horizon, penTop: this.penTop, penBottom: this.penBottom,
+      insetTop: this.insetTop, time: this.time,
+      onThunder: () => { this.shakeScreen = 0.5; this.h.sfx('thunder'); this.h.haptic('medium'); },
+    };
+  }
+
+  setWeather(id: WeatherId) { this.wx.set(id); }
+
+  /** Slime under a viewport point (for dragging snacks from the DOM tray). */
+  slimeAtClient(cx: number, cy: number): number | null {
+    const b = this.canvas.getBoundingClientRect();
+    return this.hit(cx - b.left, cy - b.top + 10)?.uid ?? null;
+  }
+
+  feedFx(uid: number, food: FoodId, res: { levelUp: boolean; rush: boolean }) {
+    const e = this.ents.get(uid);
+    this.h.sfx('chomp');
+    this.h.haptic('light');
+    if (!e) return;
+    const r = this.radius(e.data);
+    e.sqV += 12;
+    e.mood = 'excited';
+    e.moodT = 1.4;
+    this.burst(e.x, e.y - r * 1.1, FOODS[food].color, 10, 'dot', 120);
+    for (let i = 0; i < 6; i++) this.emit('heart', e.x + rand(-r, r) * 0.6, e.y - r * 1.5, rand(-40, 40), rand(-110, -70), '#ff6fa8', 1.1, rand(6, 9), 60);
+    this.floatText(e.x, e.y - r * 2.2, food === 'berry' ? 'Yum!' : food === 'jelly' ? 'Sugar rush!' : 'Level up!', '#ffd6ea', 20);
+    if (res.levelUp) {
+      this.ring(e.x, e.y - r * 0.8, '#fff3a0', r * 2.6);
+      this.burst(e.x, e.y - r, '#fff3a0', 18, 'star5', 220);
+      this.h.sfx('merge');
+    }
+  }
+
 
   private drawEgg(ctx: CanvasRenderingContext2D, e: Ent, r: number) {
     const sp = SPECIES[e.data.sp];

@@ -76,6 +76,29 @@ class AudioEngine {
     o.stop(t0 + dur + 0.05);
   }
 
+  private noiseBuf: AudioBuffer | null = null;
+  private noise(dur: number, cutoff: number, vol: number, delay = 0) {
+    const ctx = this.ctx!;
+    if (!this.noiseBuf) {
+      this.noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2.5, ctx.sampleRate);
+      const d = this.noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const t0 = ctx.currentTime + delay;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = cutoff;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f).connect(g).connect(this.sfxBus);
+    src.start(t0);
+    src.stop(t0 + dur + 0.05);
+  }
+
   play(name: string) {
     if (!this.ctx || !this.sfxOn) return;
     const now = performance.now();
@@ -126,6 +149,14 @@ class AudioEngine {
       case 'whoosh': this.tone(200, 0.25, { to: 900, type: 'sawtooth', vol: 0.05, filter: 1800 }); break;
       case 'open': this.tone(600, 0.08, { to: 900, type: 'sine', vol: 0.12 }); break;
       case 'close': this.tone(700, 0.08, { to: 450, type: 'sine', vol: 0.1 }); break;
+      case 'thunder': this.noise(2.2, 180, 0.5); this.tone(55, 1.6, { to: 35, type: 'sine', vol: 0.3, attack: 0.05 }); break;
+      case 'chomp':
+        [0, 0.12, 0.24].forEach((d) => this.noise(0.07, 1800, 0.25, d));
+        this.tone(660, 0.12, { to: 990, type: 'triangle', vol: 0.15, delay: 0.34 });
+        break;
+      case 'tick': this.tone(1500, 0.03, { type: 'square', vol: 0.05, filter: 3000 }); break;
+      case 'flip': this.tone(900, 0.06, { to: 1400, type: 'triangle', vol: 0.12 }); break;
+      case 'hurt': this.tone(300, 0.25, { to: 90, type: 'sawtooth', vol: 0.12, filter: 900 }); break;
     }
   }
 

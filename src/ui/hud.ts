@@ -1,12 +1,14 @@
 import { game } from '../game/game';
-import { SPECIES, UPGRADES, EGG_UNLOCK_COST } from '../game/data';
+import { SPECIES, UPGRADES, EGG_UNLOCK_COST, WEATHER, FOODS, type FoodId, type WeatherId } from '../game/data';
 import { fmt, fmtTime } from '../game/format';
 import { slimePortrait, paletteFor } from '../render/slimeArt';
 import { audio } from '../services/audio';
 import { haptic } from '../services/haptics';
 import { icon } from './icons';
 import { el, onAct, setText, toast } from './dom';
-import { showBoost, showChests, showDaily, showFestival } from './modals';
+import { showBoost, showChests, showDaily, showFestival, showPens, showWeather, showGames } from './modals';
+import { playGame } from './minigames';
+import { ctx } from './context';
 
 function eggSvg(sp: string) {
   const pal = paletteFor(SPECIES[sp], 0);
@@ -27,6 +29,9 @@ export class Hud {
   private capEl!: HTMLElement;
   private eggPick!: HTMLElement;
   private lastEgg = '';
+  private lastWx: WeatherId | '' = '';
+  private tray!: HTMLElement;
+  private careRow!: HTMLElement;
   private lastGooShown = -1;
 
   constructor(parent: HTMLElement, private onTab: (id: string) => void) {
@@ -37,7 +42,10 @@ export class Hud {
         <button class="pill gem-pill" data-act="gems">${icon('gem')}<span data-gems>0</span><span class="plus">+</span></button>
         <button class="icon-btn" data-act="settings" aria-label="Settings">${icon('gear')}</button>
       </div>
-      <div class="boost-chip">${icon('bolt')}<span data-boost>2×</span></div>
+      <div class="left-stack">
+        <button class="wx-chip" data-act="weather"><span class="wx-ico"></span><span><b data-wx-name>Sunny</b><small data-wx-sub></small></span></button>
+        <div class="boost-chip">${icon('bolt')}<span data-boost>2×</span></div>
+      </div>
       <div class="rail">
         <button class="rail-btn" data-act="daily">${icon('calendar')}<span class="lbl">Daily</span><span class="badge" data-daily-badge>!</span></button>
         <button class="rail-btn" data-act="chests">${icon('chest')}<span class="lbl" data-chest-lbl>Chest</span></button>
@@ -45,6 +53,26 @@ export class Hud {
         <button class="rail-btn festival" data-act="festival" style="display:none">${icon('ribbon')}<span class="lbl">Festival</span></button>
       </div>
       <div class="dock">
+        <div class="care-row">
+          <button class="care-btn" data-act="feed">${icon('berry')}<span>Snacks</span></button>
+          <div class="pen-bar">
+            <button class="pen-arrow" data-act="penPrev" aria-label="Previous pen">‹</button>
+            <button class="pen-name" data-act="pens">${icon('fence')}<span data-pen-name>Meadow Pen</span></button>
+            <button class="pen-arrow" data-act="penNext" aria-label="Next pen">›</button>
+          </div>
+          <button class="care-btn games" data-act="games">${icon('game')}<span>Games</span><span class="badge" data-ticket-badge>3</span></button>
+        </div>
+        <div class="snack-tray" hidden>
+          ${(Object.keys(FOODS) as FoodId[]).map((f) => `<div class="snack" data-food="${f}">
+            <div class="snack-drag" data-drag="${f}">${icon(f)}<b data-food-n="${f}">0</b></div>
+            <button class="snack-buy" data-act="buyFood" data-id="${f}"><span data-food-cost="${f}"></span></button>
+          </div>`).join('')}
+          <div class="snack-side">
+            <button class="btn small" data-act="feedAll">Feed all</button>
+            <small>Drag a snack onto a slime</small>
+          </div>
+          <button class="snack-x" data-act="feed" aria-label="Close snacks">${icon('close')}</button>
+        </div>
         <div class="hatch-row">
           <button class="side-chip egg-picker" data-act="egg"><img alt=""><small data-egg-name>Mint</small></button>
           <button class="hatch-btn" data-act="hatch">
@@ -52,7 +80,7 @@ export class Hud {
             <div class="ht"><b>HATCH</b><span>${icon('goo')}<em data-cost style="font-style:normal">0</em></span></div>
             <i class="prog"></i>
           </button>
-          <div class="side-chip cap"><b data-cap>0/8</b><small>Pen</small></div>
+          <button class="side-chip cap" data-act="pens"><b data-cap>0/8</b><small>Pen</small></button>
         </div>
         <nav class="tabs">
           <button class="tab active" data-act="tab" data-tab="ranch">${icon('home')}Ranch</button>
@@ -74,6 +102,9 @@ export class Hud {
     this.progEl = q('.prog');
     this.capEl = q('[data-cap]');
     this.eggPick = q('.egg-picker');
+    this.tray = q('.snack-tray');
+    this.careRow = q('.care-row');
+    this.bindSnackDrag();
 
     onAct(this.root, {
       hatch: () => this.hatch(),
@@ -89,7 +120,84 @@ export class Hud {
       chests: () => showChests(),
       boost: () => showBoost(),
       festival: () => showFestival(),
+      weather: () => showWeather(),
+      pens: () => showPens(),
+      penPrev: () => this.switchPen(-1),
+      penNext: () => this.switchPen(1),
+      games: () => showGames((g) => playGame(g)),
+      feed: () => this.toggleTray(),
+      feedAll: () => {
+        const n = game.feedAll();
+        if (n === 0) {
+          toast(game.s.food.berry <= 0 ? 'Out of berries — buy more with +' : 'Everyone here is already happy!', 'berry');
+          audio.play('nope');
+          return;
+        }
+        for (const sl of game.penSlimes()) if (sl.happy >= 60) ctx.ranch.feedFx(sl.uid, 'berry', { levelUp: false, rush: false });
+        toast(`Fed ${n} slime${n > 1 ? 's' : ''}`, 'berry');
+      },
+      buyFood: (t) => {
+        const f = t.dataset.id as FoodId;
+        const n = f === 'berry' ? 5 : 1;
+        if (game.buyFood(f, n)) { audio.play('buy'); toast(`+${n} ${FOODS[f].name}${n > 1 ? 's' : ''}`, f); }
+        else { audio.play('nope'); toast(FOODS[f].gems ? 'Not enough gems' : 'Not enough goo', FOODS[f].gems ? 'gem' : 'goo'); }
+      },
     });
+  }
+
+  switchPen(dir: number) {
+    const n = game.s.pens.length;
+    if (n < 2) { showPens(); return; }
+    game.setActivePen((game.s.activePen + dir + n) % n);
+    audio.play('whoosh');
+  }
+
+  private toggleTray(force?: boolean) {
+    const open = force ?? this.tray.hidden;
+    this.tray.hidden = !open;
+    this.careRow.hidden = open;
+    audio.play(open ? 'open' : 'close');
+  }
+
+  /** Snacks are dragged from the tray and dropped onto a slime on the ranch. */
+  private bindSnackDrag() {
+    let drag: { food: FoodId; ghost: HTMLElement; id: number; x0: number; y0: number; moved: boolean } | null = null;
+    this.tray.addEventListener('pointerdown', (ev) => {
+      const src = (ev.target as HTMLElement).closest<HTMLElement>('[data-drag]');
+      if (!src) return;
+      const food = src.dataset.drag as FoodId;
+      if (game.s.food[food] <= 0) { toast(`No ${FOODS[food].name}s — tap + to get more`, food); audio.play('nope'); return; }
+      ev.preventDefault();
+      const ghost = el(`<div class="snack-ghost">${icon(food)}</div>`);
+      document.body.appendChild(ghost);
+      drag = { food, ghost, id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, moved: false };
+      src.setPointerCapture(ev.pointerId);
+      place(ev);
+      audio.play('pick');
+    });
+    const place = (ev: PointerEvent) => {
+      if (!drag) return;
+      drag.ghost.style.transform = `translate(${ev.clientX - 26}px, ${ev.clientY - 60}px)`;
+      if (Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 8) drag.moved = true;
+      ctx.ranch.foodHover = ctx.ranch.slimeAtClient(ev.clientX, ev.clientY - 34);
+    };
+    this.tray.addEventListener('pointermove', (ev) => { if (drag?.id === ev.pointerId) place(ev); });
+    const end = (ev: PointerEvent) => {
+      if (!drag || drag.id !== ev.pointerId) return;
+      const { food, ghost, moved } = drag;
+      drag = null;
+      ghost.remove();
+      const uid = ctx.ranch.slimeAtClient(ev.clientX, ev.clientY - 34);
+      ctx.ranch.foodHover = null;
+      if (!moved) { toast('Drag the snack onto a slime to feed it', food); return; }
+      if (uid == null) { audio.play('drop'); return; }
+      const r = game.feed(uid, food);
+      if (!r) { toast('That slime is already full!', 'hand'); audio.play('nope'); return; }
+      ctx.ranch.feedFx(uid, food, r);
+      if (game.s.tutorial < 3 && game.s.stats.feeds === 1) toast('Happy slimes make up to +50% more goo!', 'hand');
+    };
+    this.tray.addEventListener('pointerup', end);
+    this.tray.addEventListener('pointercancel', end);
   }
 
   setTab(id: string) {
@@ -117,7 +225,8 @@ export class Hud {
   /** Top/bottom space the ranch should avoid. */
   insets(): [number, number] {
     const top = this.root.querySelector('.hud-top')!.getBoundingClientRect().bottom;
-    const bottom = window.innerHeight - this.root.querySelector('.hatch-row')!.getBoundingClientRect().top;
+    const row = this.careRow.hidden ? this.tray : this.careRow;
+    const bottom = window.innerHeight - row.getBoundingClientRect().top;
     return [top, bottom];
   }
 
@@ -142,7 +251,27 @@ export class Hud {
     const full = game.isFull();
     this.hatchBtn.classList.toggle('disabled', full || s.goo < cost);
     this.progEl.style.width = `${full ? 0 : s.eggProgress * 100}%`;
-    setText(this.capEl, `${s.slimes.length}/${game.capacity()}`);
+    setText(this.capEl, `${game.penSlimes().length}/${game.capacity()}`);
+    setText(this.root.querySelector('[data-pen-name]')!, s.pens[s.activePen].name + (s.pens.length > 1 ? `  ${s.activePen + 1}/${s.pens.length}` : ''));
+    const w = WEATHER[s.weather.id];
+    if (this.lastWx !== w.id) {
+      this.lastWx = w.id;
+      this.root.querySelector('.wx-ico')!.innerHTML = icon(w.id);
+      setText(this.root.querySelector('[data-wx-name]')!, w.name);
+      setText(this.root.querySelector('[data-wx-sub]')!, w.id === 'rainbow' ? 'All +25%' : `${w.favors.map((e) => SPECIES[e].name).join(' & ')} ×${w.mult}`);
+    }
+    const tk = game.ticketsNow();
+    const tb = this.root.querySelector<HTMLElement>('[data-ticket-badge]')!;
+    tb.style.display = tk > 0 ? '' : 'none';
+    setText(tb, String(tk));
+    if (!this.tray.hidden) {
+      for (const f of Object.keys(FOODS) as FoodId[]) {
+        setText(this.root.querySelector(`[data-food-n="${f}"]`)!, String(s.food[f]));
+        const cost = this.root.querySelector<HTMLElement>(`[data-food-cost="${f}"]`)!;
+        const html = FOODS[f].gems ? `+1 ${icon('gem')}${FOODS[f].gems}` : `+5 ${icon('goo')}${fmt(game.berryPrice() * 5)}`;
+        if (cost.dataset.h !== html.replace(/_\d+/g, '')) { cost.innerHTML = html; cost.dataset.h = html.replace(/_\d+/g, ''); }
+      }
+    }
     this.capEl.parentElement!.classList.toggle('full', full);
 
     if (this.lastEgg !== s.eggChoice) {

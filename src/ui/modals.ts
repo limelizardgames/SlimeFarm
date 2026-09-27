@@ -1,7 +1,9 @@
 import { game, type GrantedReward } from '../game/game';
 import {
   SPECIES, TIER_NAMES, TIER_COLORS, VARIANTS, HATS, CHESTS, DAILY_REWARDS,
-  AD_BOOST_MINUTES, AD_GEMS_REWARD, FESTIVAL_MIN_GOO, type ChestKind, type Reward,
+  AD_BOOST_MINUTES, AD_GEMS_REWARD, FESTIVAL_MIN_GOO, FOODS, WEATHER, MAX_PENS, MAX_TICKETS,
+  HARMONY_MIN, HARMONY_BONUS, THEMES,
+  type ChestKind, type Reward, type FoodId,
 } from '../game/data';
 import { fmt, fmtTime } from '../game/format';
 import { slimePortrait, hatPortrait } from '../render/slimeArt';
@@ -81,6 +83,7 @@ function rewardIcon(r: Reward) {
     case 'gems': return icon('gem');
     case 'boost': return icon('bolt');
     case 'chest': return icon('chest');
+    case 'food': return icon(r.food);
   }
 }
 function rewardLabel(r: Reward) {
@@ -89,6 +92,7 @@ function rewardLabel(r: Reward) {
     case 'gems': return `${r.amount}`;
     case 'boost': return `${r.minutes}m ×2`;
     case 'chest': return CHESTS[r.chest].name.split(' ')[0];
+    case 'food': return `${r.amount} ${FOODS[r.food].name.split(' ')[1]}${r.amount > 1 ? 's' : ''}`;
   }
 }
 
@@ -134,7 +138,7 @@ function celebrateGrant(granted: GrantedReward[]) {
 }
 
 function grantIconName(g: GrantedReward) {
-  return g.kind === 'goo' ? 'goo' : g.kind === 'gems' ? 'gem' : g.kind === 'boost' ? 'bolt' : g.kind === 'hat' ? 'hat' : 'egg';
+  return g.kind === 'goo' ? 'goo' : g.kind === 'gems' ? 'gem' : g.kind === 'boost' ? 'bolt' : g.kind === 'hat' ? 'hat' : g.kind === 'food' ? g.food : 'egg';
 }
 
 function describeGrant(g: GrantedReward): string {
@@ -144,6 +148,7 @@ function describeGrant(g: GrantedReward): string {
     case 'boost': return `+${g.minutes} min of 2× goo`;
     case 'hat': return g.dupe ? `Duplicate ${hatName(g.hat)} → +10 gems` : `New hat: ${hatName(g.hat)}!`;
     case 'slime': return g.slime ? `${SPECIES[g.sp].name} Lv ${g.lvl} hatched!` : `Pen full — converted to goo`;
+    case 'food': return `+${g.amount} ${FOODS[g.food].name}${g.amount > 1 ? 's' : ''}`;
   }
 }
 const hatName = (id: string) => HATS.find((h) => h.id === id)?.name ?? id;
@@ -190,14 +195,32 @@ export function showSlimeInfo(uid: number) {
     const hats = [`<button class="hat-opt ${!sl.hat ? 'on' : ''}" data-hat="">None</button>`]
       .concat(game.s.hats.map((h) => `<button class="hat-opt ${sl.hat === h ? 'on' : ''}" data-hat="${h}"><img src="${hatPortrait(h, 50)}" alt=""></button>`))
       .join('');
+    const happy = Math.round(sl.happy);
+    const mood = happy >= 80 ? 'Overjoyed' : happy >= 50 ? 'Content' : happy >= 25 ? 'Peckish' : 'Hungry!';
+    const foods = (Object.keys(FOODS) as FoodId[]).map((f) =>
+      `<button class="food-opt ${game.s.food[f] > 0 ? '' : 'empty'}" data-feed="${f}">${icon(f)}<b>${game.s.food[f]}</b></button>`).join('');
+    const pens = game.s.pens.length > 1
+      ? `<div class="section-title" style="margin-top:12px">${icon('fence')} Move to pen</div><div class="pen-strip">${game.s.pens.map((p, i) =>
+          `<button class="pen-opt ${i === sl.pen ? 'on' : ''} ${i !== sl.pen && game.isFull(i) ? 'full' : ''}" data-move="${i}">${p.name}<small>${game.penSlimes(i).length}/${game.capacity()}</small></button>`).join('')}</div>`
+      : '';
+    const perks = [
+      game.rushing(sl) ? `<span class="perk rush">Sugar rush ${fmtTime((sl.rushUntil ?? 0) - Date.now())}</span>` : '',
+      game.harmony(sl) ? `<span class="perk harmony">Harmony +${HARMONY_BONUS * 100}%</span>` : '',
+      game.weatherMult(sl.sp) > 1 ? `<span class="perk weather">${WEATHER[game.s.weather.id].name} ×${game.weatherMult(sl.sp)}</span>` : '',
+    ].join('');
     return `
-      <div class="hero-art" style="height:150px"><div class="rays" style="--ray:${tc}55"></div><img style="width:150px;height:150px" src="${slimePortrait(sl.sp, sl.variant, { size: 160, hat: sl.hat })}"></div>
+      <div class="hero-art" style="height:140px"><div class="rays" style="--ray:${tc}55"></div><img style="width:140px;height:140px" src="${slimePortrait(sl.sp, sl.variant, { size: 150, hat: sl.hat, mood: happy < 25 ? 'sleepy' : 'happy' })}"></div>
       <h2>${sl.variant ? VARIANTS[sl.variant].name + ' ' : ''}${sp.name}</h2>
       <span class="tier-tag" style="background:${tc}">${TIER_NAMES[sp.tier]} · Lv ${sl.lvl}</span>
+      <div class="happy-meter"><span>${icon('hand')} ${mood}</span><div class="bar"><i style="width:${happy}%"></i></div><b>+${Math.round((game.happyMult(sl) - 1) * 100)}%</b></div>
+      ${perks ? `<div class="perks">${perks}</div>` : ''}
       <div class="kv">
         <div><small>Goo / sec</small><b>${fmt(game.slimeRate(sl) * game.globalMult())}</b></div>
         <div><small>Mutation</small><b>${VARIANTS[sl.variant].name} ×${VARIANTS[sl.variant].mult}</b></div>
       </div>
+      <div class="section-title" style="margin-top:12px">${icon('berry')} Feed</div>
+      <div class="food-strip">${foods}</div>
+      ${pens}
       <div class="section-title" style="margin-top:12px">${icon('hat')} Hats</div>
       ${game.s.hats.length ? `<div class="hat-strip">${hats}</div>` : `<p style="margin:0 0 6px">Find hats in chests or buy them in the Shop!</p>`}
       <div class="actions" style="grid-template-columns:1fr 1fr">
@@ -206,15 +229,36 @@ export function showSlimeInfo(uid: number) {
       </div>`;
   };
   m = openModal({ html: render() });
+  const rerender = () => {
+    const x = m.card.querySelector('.x');
+    const scroll = m.card.scrollTop;
+    m.card.innerHTML = '';
+    if (x) m.card.appendChild(x);
+    m.card.insertAdjacentHTML('beforeend', render());
+    m.card.scrollTop = scroll;
+    wire();
+  };
   const wire = () => {
     m.card.querySelectorAll<HTMLElement>('[data-hat]').forEach((b) => b.addEventListener('click', () => {
       game.setHat(uid, (b.dataset.hat || undefined) as any);
       audio.play('pop');
-      const x = m.card.querySelector('.x');
-      m.card.innerHTML = '';
-      if (x) m.card.appendChild(x);
-      m.card.insertAdjacentHTML('beforeend', render());
-      wire();
+      rerender();
+    }));
+    m.card.querySelectorAll<HTMLElement>('[data-feed]').forEach((b) => b.addEventListener('click', () => {
+      const f = b.dataset.feed as FoodId;
+      if (game.s.food[f] <= 0) { toast(`No ${FOODS[f].name}s left — get more from the snack tray`, f); audio.play('nope'); return; }
+      const r = game.feed(uid, f);
+      if (!r) { toast(`${sp.name} is already full!`, 'hand'); audio.play('nope'); return; }
+      ctx.ranch.feedFx(uid, f, r);
+      rerender();
+    }));
+    m.card.querySelectorAll<HTMLElement>('[data-move]').forEach((b) => b.addEventListener('click', () => {
+      const pen = Number(b.dataset.move);
+      if (pen === sl.pen) return;
+      if (!game.moveSlime(uid, pen)) { toast(`${game.s.pens[pen].name} is full`, 'fence'); audio.play('nope'); return; }
+      audio.play('whoosh');
+      toast(`Moved to ${game.s.pens[pen].name}`, 'fence');
+      m.close();
     }));
     m.card.querySelector('[data-ok]')?.addEventListener('click', () => m.close());
     m.card.querySelector('[data-sell]')?.addEventListener('click', async () => {
@@ -228,6 +272,128 @@ export function showSlimeInfo(uid: number) {
     });
   };
   wire();
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Pens manager
+// ─────────────────────────────────────────────────────────────
+export function showPens() {
+  let m: ModalHandle;
+  const render = () => {
+    const rows = game.s.pens.map((p, i) => {
+      const t = THEMES.find((x) => x.id === p.theme)!;
+      const slimes = game.penSlimes(i);
+      const faces = slimes.slice(0, 5).map((sl) => `<img src="${slimePortrait(sl.sp, sl.variant, { size: 32 })}" alt="">`).join('');
+      return `<div class="pen-row ${i === game.s.activePen ? 'on' : ''}">
+        <div class="pen-swatch" style="background:linear-gradient(180deg,${t.sky[1]},${t.sky[2]} 50%,${t.ground[0]} 50%,${t.ground[1]})">${faces}</div>
+        <div class="meta"><b>${escapeHtml(p.name)}</b><small>${slimes.length}/${game.capacity()} slimes · ${fmt(game.penRate(i))}/s</small></div>
+        <button class="btn small gray" data-rename="${i}" aria-label="Rename">✎</button>
+        ${i === game.s.activePen ? `<button class="btn small" data-go="${i}" disabled>Here</button>` : `<button class="btn small blue" data-go="${i}">Visit</button>`}
+      </div>`;
+    }).join('');
+    const n = game.s.pens.length;
+    const cost = game.nextPenCost();
+    const buy = n < MAX_PENS
+      ? `<button class="btn gold wide ${game.s.goo >= cost ? '' : 'disabled'}" data-buy>${icon('fence')} Build pen #${n + 1} · ${icon('goo')} ${fmt(cost)}</button>`
+      : `<p>You've built every pen. What a ranch!</p>`;
+    return `<h2>Your Pens</h2>
+      <p>Organize slimes into pens. Every pen keeps producing while you're elsewhere. Keep <b>${HARMONY_MIN}+ of one species</b> together for a <b>+${HARMONY_BONUS * 100}% Harmony</b> bonus.</p>
+      <div class="pen-list">${rows}</div>
+      <div class="actions">${buy}</div>
+      <p class="fine">Tip: swipe the ranch sideways to hop between pens. Each pen remembers its own theme.</p>`;
+  };
+  m = openModal({ html: render() });
+  const rerender = () => { const x = m.card.querySelector('.x'); m.card.innerHTML = ''; if (x) m.card.appendChild(x); m.card.insertAdjacentHTML('beforeend', render()); wire(); };
+  const wire = () => {
+    m.card.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => b.addEventListener('click', () => { game.setActivePen(Number(b.dataset.go)); audio.play('whoosh'); m.close(); }));
+    m.card.querySelectorAll<HTMLElement>('[data-rename]').forEach((b) => b.addEventListener('click', () => {
+      const i = Number(b.dataset.rename);
+      const row = b.closest('.pen-row')!;
+      const meta = row.querySelector('.meta')!;
+      meta.innerHTML = `<input class="pen-input" id="pen-name-${i}" maxlength="18" value="${escapeHtml(game.s.pens[i].name)}" aria-label="Pen name">`;
+      const inp = meta.querySelector('input')!;
+      inp.focus(); inp.select();
+      const done = () => { game.renamePen(i, inp.value); rerender(); };
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); });
+      inp.addEventListener('blur', done);
+    }));
+    m.card.querySelector('[data-buy]')?.addEventListener('click', (ev) => {
+      if ((ev.currentTarget as HTMLElement).classList.contains('disabled')) { audio.play('nope'); toast('Not enough goo yet!', 'goo'); return; }
+      if (game.buyPen()) {
+        audio.play('fanfare');
+        haptic('success');
+        m.close();
+        setTimeout(() => { ctx.ranch.celebrate(); toast(`${game.s.pens[game.s.activePen].name} is open! New eggs hatch here.`, 'fence'); }, 250);
+      }
+    });
+  };
+  wire();
+}
+
+function escapeHtml(t: string) {
+  return t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Weather forecast
+// ─────────────────────────────────────────────────────────────
+export function showWeather() {
+  const w = WEATHER[game.s.weather.id];
+  const favored = w.id === 'rainbow' ? 'Every slime' : w.favors.map((e) => SPECIES[e].name).join(' & ') + ' slimes';
+  const list = Object.values(WEATHER).map((x) =>
+    `<div class="wx-row ${x.id === w.id ? 'on' : ''}">${icon(x.id)}<div><b>${x.name}</b><small>${x.id === 'rainbow' ? 'All slimes +25%, 2× shiny chance' : `${x.favors.map((e) => SPECIES[e].name).join(' & ')} ×${x.mult}`}</small></div></div>`).join('');
+  const m = openModal({
+    banner: 'Ranch Weather',
+    bannerColors: ['#7fd0ff', '#247fd6'],
+    html: `
+      <div class="hero-art" style="height:110px"><div class="rays" style="--ray:rgba(127,208,255,.4)"></div><span class="ico" style="width:84px;height:84px;position:relative">${ICON[w.id]}</span></div>
+      <h2>${w.name}</h2>
+      <p>${w.blurb}<br><b>${favored} ×${w.mult}</b> · changes in ${fmtTime(game.s.weather.until - Date.now())}</p>
+      <p class="fine" style="margin-top:-6px">Fused slimes count as every element in their family tree.</p>
+      <div class="wx-list">${list}</div>
+      <div class="actions"><button class="btn wide" data-ok>Got it</button></div>`,
+  });
+  m.card.querySelector('[data-ok]')!.addEventListener('click', () => m.close());
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Mini-game hub
+// ─────────────────────────────────────────────────────────────
+export function showGames(play: (g: 'catch' | 'match') => void) {
+  queueModal(() => {
+    const t = game.ticketsNow();
+    const next = game.s.ticketAt ? fmtTime(game.s.ticketAt - Date.now()) : '';
+    const m = openModal({
+      banner: 'Slime Games',
+      bannerColors: ['#7fd0ff', '#6a3fd6'],
+      html: `
+        <div class="tickets">${Array.from({ length: Math.max(MAX_TICKETS, t) }, (_, i) => `<span class="${i < t ? 'on' : ''}">${icon('ticket')}</span>`).join('')}</div>
+        <p style="margin-top:4px">${t > 0 ? `You have <b>${t}</b> play ticket${t > 1 ? 's' : ''}.` : 'Out of tickets!'} ${t < MAX_TICKETS ? `Next ticket in ${next}.` : ''}</p>
+        <div class="game-card" style="--g1:#8ef0b0;--g2:#22b560">
+          <div class="gc-art">${icon('goo')}</div>
+          <div class="meta"><b>Goo Catch</b><small>Slide to catch falling goo, dodge the rocks! Best: ${game.s.best.catch}</small></div>
+          <button class="btn small ${t > 0 ? '' : 'disabled'}" data-play="catch">Play</button>
+        </div>
+        <div class="game-card" style="--g1:#ffc2e6;--g2:#d6357c">
+          <div class="gc-art"><img src="${slimePortrait('mint', 0, { size: 48 })}" alt=""></div>
+          <div class="meta"><b>Slime Match</b><small>Flip cards and find matching pairs. Best: ${game.s.best.match ? game.s.best.match + '★' : '—'}</small></div>
+          <button class="btn small pink ${t > 0 ? '' : 'disabled'}" data-play="match">Play</button>
+        </div>
+        <p class="fine">Win goo, snacks and even Golden Apples. Better scores, better prizes!</p>
+        <div class="actions">${adBtn('+1 ticket', 'data-ad')}</div>`,
+    });
+    m.card.querySelectorAll<HTMLElement>('[data-play]').forEach((b) => b.addEventListener('click', () => {
+      if (b.classList.contains('disabled')) { audio.play('nope'); toast('No tickets left — watch an ad or wait a bit', 'ticket'); return; }
+      if (!game.useTicket()) return;
+      m.close();
+      setTimeout(() => play(b.dataset.play as 'catch' | 'match'), 220);
+    }));
+    m.card.querySelector('[data-ad]')!.addEventListener('click', () => watchAd('+1 game ticket', () => {
+      game.addTicket();
+      m.close();
+      setTimeout(() => showGames(play), 250);
+    }));
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -337,6 +503,7 @@ function lootArt(g: GrantedReward) {
     case 'boost': return icon('bolt');
     case 'hat': return `<img src="${hatPortrait(g.hat, 52)}" alt="">`;
     case 'slime': return `<img src="${slimePortrait(g.sp, g.slime?.variant ?? 0, { size: 60 })}" alt="">`;
+    case 'food': return icon(g.food);
   }
 }
 function lootAmount(g: GrantedReward) {
@@ -346,6 +513,7 @@ function lootAmount(g: GrantedReward) {
     case 'boost': return g.minutes + ' min';
     case 'hat': return g.dupe ? '+10 💎' : 'New!';
     case 'slime': return 'Lv ' + g.lvl;
+    case 'food': return '×' + g.amount;
   }
 }
 function lootSub(g: GrantedReward) {
@@ -355,6 +523,7 @@ function lootSub(g: GrantedReward) {
     case 'boost': return '2× Goo';
     case 'hat': return hatName(g.hat);
     case 'slime': return g.slime ? SPECIES[g.sp].name : 'Pen full → goo';
+    case 'food': return FOODS[g.food].name;
   }
 }
 
@@ -495,7 +664,7 @@ export function showFestival() {
       <div class="hero-art" style="height:120px"><div class="rays" style="--ray:rgba(255,140,192,.45)"></div><span class="ico" style="width:86px;height:86px;position:relative">${ICON.ribbon}</span></div>
       <p>Show off your ranch at the festival! You'll start a fresh ranch but earn <b>Blue Ribbons</b>: each one permanently adds <b>+10% goo</b>.</p>
       <div class="kv"><div><small>Ribbons now</small><b>${game.s.ribbons}</b></div><div><small>You'll earn</small><b style="color:var(--pink-d)">+${gain}</b></div></div>
-      <p style="font-size:12.5px">You keep: gems, Slimedex, hats, themes & purchases.<br>You reset: goo, slimes, upgrades & egg research.</p>
+      <p style="font-size:12.5px">You keep: gems, Slimedex, hats, themes & purchases.<br>You reset: goo, slimes, pens, upgrades & egg research.</p>
       <div class="actions">
         <button class="btn pink wide ${gain > 0 ? '' : 'disabled'}" data-go>${gain > 0 ? `Celebrate! +${gain} ${icon('ribbon')}` : `Earn ${fmt(FESTIVAL_MIN_GOO)} goo this run`}</button>
       </div>`,

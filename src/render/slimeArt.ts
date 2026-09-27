@@ -131,7 +131,8 @@ export function drawSlime(ctx: CanvasRenderingContext2D, o: SlimeDrawOpts) {
   ctx.fillRect(g.cx, g.cy - h, w * 1.5, h * 2.2);
   ctx.restore();
 
-  // ── outline
+  // ── outline (patterns replaced the current path, so trace the body again)
+  bodyPath(ctx, o.x, o.y, w, h, t, o.wobble ?? 0.035, lean);
   ctx.lineWidth = lw;
   ctx.strokeStyle = pal.line;
   ctx.lineJoin = 'round';
