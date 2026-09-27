@@ -70,3 +70,28 @@ export const PRODUCT_NAMES: Record<ProductKey, string> = {
   gemsMedium: `${GEM_PACKS.gemsMedium} Gems`,
   gemsLarge: `${GEM_PACKS.gemsLarge} Gems`,
 };
+
+// ─────────────────────────────────────────────────────────────
+//  Accounts & cloud save (Firebase Authentication + Firestore)
+//  While `enabled` is false the game uses a local DEMO sign-in so the
+//  account screens can be tested; nothing leaves the device.
+//  See README → "Accounts" for the store-release checklist.
+// ─────────────────────────────────────────────────────────────
+export const AUTH = {
+  enabled: false,
+  /** Order shown on the sign-in screen. Apple must be offered on iOS when any other social login is (App Store guideline 4.8). */
+  providers: ['apple', 'google', 'facebook'] as const,
+  /** Firebase console → Project settings → Your apps → Web app config */
+  firebase: {
+    apiKey: '',
+    authDomain: '',
+    projectId: '',
+    storageBucket: '',
+    messagingSenderId: '',
+    appId: '',
+  },
+  /** Upload the save at most this often while playing (plus whenever the app is backgrounded). */
+  syncEveryMs: 60_000,
+};
+
+export type AuthProvider = (typeof AUTH.providers)[number];

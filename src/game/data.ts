@@ -296,3 +296,22 @@ export const WEATHER: Record<WeatherId, WeatherDef> = {
 // ── Mini games ─────────────────────────────────────────────
 export const MAX_TICKETS = 3;
 export const TICKET_REGEN_MS = 20 * 60_000;
+
+// ── Gems from petting ──────────────────────────────────────
+/** Chance per pet to find a gem: base + bonus scaled by the slime's happiness. */
+export const PET_GEM_CHANCE = 0.02;
+export const PET_GEM_HAPPY_BONUS = 0.02;
+/** Share of gem finds that are a 5-gem jackpot instead of 1. */
+export const PET_GEM_JACKPOT = 0.1;
+/** Stops auto-clickers from farming gems. */
+export const PET_GEM_DAILY_CAP = 25;
+
+// ── Auto-Feeder (keeps every slime at full happiness for a while) ──
+export interface AutoFeedPlan { id: string; minutes: number; gems: number; tag?: string }
+export const AUTOFEED_PLANS: AutoFeedPlan[] = [
+  { id: 'snack', minutes: 30, gems: 15 },
+  { id: 'lunch', minutes: 120, gems: 45, tag: 'Popular' },
+  { id: 'feast', minutes: 480, gems: 120, tag: 'Best value' },
+];
+export const AUTOFEED_AD_MINUTES = 10;
+export const AUTOFEED_MAX_HOURS = 24;

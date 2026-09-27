@@ -19,6 +19,8 @@ import { ctx } from './ui/context';
 import { toast, confirmModal, modalOpen, el } from './ui/dom';
 import { showOffline, showDaily, showDiscovery, showSlimeInfo, showGift } from './ui/modals';
 import { FALLBACK_PRICES, PRODUCT_NAMES } from './config';
+import { initAccount, maybeNudgeAccount } from './ui/account';
+import { icon } from './ui/icons';
 
 async function boot() {
   await game.load();
@@ -30,7 +32,14 @@ async function boot() {
   const ranch = new Ranch(canvas, {
     merge: (a, b) => game.merge(a, b),
     preview: (a, b) => game.previewMerge(a, b),
-    tap: (uid) => { const g = game.tap(uid); advanceTutorial('tap'); return g; },
+    tap: (uid) => {
+      const r = game.pet(uid);
+      advanceTutorial('tap');
+      if (r.gems > 0 && game.s.stats.petGems === r.gems) setTimeout(() => toast('Lucky! Petting happy slimes sometimes turns up gems', 'gem'), 900);
+      return r;
+    },
+    gemFx: (x, y, n) => flyGems(x, y, n),
+    autoFeeding: () => game.autoFeeding(),
     release: (uid) => game.release(uid),
     releaseValue: (uid) => { const s = game.getSlime(uid); return s ? game.releaseValue(s) : 0; },
     longPress: (uid) => showSlimeInfo(uid),
@@ -81,7 +90,7 @@ async function boot() {
     ranch.addEnt(sl, 'egg');
     ranch.sync(game.penSlimes());
   });
-  game.on('discovery', (sl, gems) => showDiscovery(sl.sp, sl.variant, gems));
+  game.on('discovery', (sl, gems) => { showDiscovery(sl.sp, sl.variant, gems); maybeNudgeAccount(); });
   game.on('variantFound', (sl) => toast(`${sl.variant === 2 ? 'Golden' : 'Shiny'} ${SPECIES[sl.sp].name} added to the Slimedex!`, 'sparkle'));
   game.on('theme', (id) => ranch.setTheme(id));
   game.on('reset', () => { ranch.ents.clear(); ranch.setTheme(game.activeTheme()); ranch.sync(game.penSlimes(), { spawnMode: 'egg' }); sheets.render(); });
@@ -101,6 +110,7 @@ async function boot() {
   ads.onPause = (p) => (p ? audio.suspend() : audio.resume());
   iap.confirmWeb = (key, price) => confirmModal('Test purchase', `This web build simulates store purchases.<br>Buy <b>${PRODUCT_NAMES[key]}</b> for <b>${price || FALLBACK_PRICES[key]}</b>?`, 'Buy (test)', 'Cancel', '');
   ads.init();
+  initAccount();
   iap.init().then((owned) => owned.forEach((k) => grantProduct(k, false)));
 
   // ── audio needs a user gesture
@@ -193,3 +203,25 @@ function advanceTutorial(ev: 'merge' | 'tap') {
 }
 
 boot();
+
+/** A gem found by petting flies up into the gem counter. */
+function flyGems(x: number, y: number, n: number) {
+  const target = document.querySelector('.gem-pill');
+  if (!target) return;
+  const t = target.getBoundingClientRect();
+  for (let i = 0; i < Math.min(n, 5); i++) {
+    const g = el(`<div class="fly-gem">${icon('gem')}</div>`);
+    document.body.appendChild(g);
+    const dx = t.left + 18 - x, dy = t.top + 18 - y;
+    const a = g.animate([
+      { transform: `translate(${x - 16}px, ${y - 16}px) scale(0.6)`, opacity: 0 },
+      { transform: `translate(${x - 16 + dx * 0.3 + (i - 2) * 16}px, ${y - 16 + dy * 0.2 - 60}px) scale(1.25)`, opacity: 1, offset: 0.35 },
+      { transform: `translate(${t.left + 2}px, ${t.top + 2}px) scale(0.7)`, opacity: 1 },
+    ], { duration: 750 + i * 90, easing: 'cubic-bezier(.5,0,.3,1)' });
+    a.onfinish = () => {
+      g.remove();
+      audio.play('coin');
+      target.animate([{ transform: 'scale(1.25)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+    };
+  }
+}

@@ -60,6 +60,20 @@ class IapService {
     }
   }
 
+  /** Ties purchases to the signed-in account so they follow the player across devices. */
+  async logIn(uid: string): Promise<ProductKey[]> {
+    if (!native || !this.mod) return [];
+    try {
+      const { customerInfo } = await this.mod.Purchases.logIn({ appUserID: uid });
+      return this.owned(customerInfo);
+    } catch (e) { console.warn('[iap] logIn failed', e); return []; }
+  }
+
+  async logOut() {
+    if (!native || !this.mod) return;
+    await this.mod.Purchases.logOut().catch(() => {});
+  }
+
   async restore(): Promise<ProductKey[]> {
     if (!native || !this.mod) return [];
     try {

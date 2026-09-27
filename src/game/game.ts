@@ -4,7 +4,8 @@ import {
   FESTIVAL_MIN_GOO, fusionResult, upgradeCost, eggInterval, tapSeconds, shinyChance, goldenChance,
   offlineHours, penCapacity, FOODS, WEATHER, elementsOf, MAX_PENS, PEN_NAMES, penCost,
   HARMONY_MIN, HARMONY_BONUS, RUSH_MINUTES, HAPPY_DRAIN_SECONDS, PET_HAPPY, HAPPY_MAX_BONUS,
-  MAX_TICKETS, TICKET_REGEN_MS,
+  MAX_TICKETS, TICKET_REGEN_MS, PET_GEM_CHANCE, PET_GEM_HAPPY_BONUS, PET_GEM_JACKPOT, PET_GEM_DAILY_CAP,
+  AUTOFEED_MAX_HOURS,
   type Variant, type HatId, type ThemeId, type ChestKind, type Reward, type UpgradeDef,
   type FoodId, type WeatherId,
 } from './data';
@@ -63,7 +64,7 @@ export interface GameState {
   gooPass: boolean;
   starterPack: boolean;
   settings: Settings;
-  stats: { merges: number; fusions: number; taps: number; ads: number; hatched: number; feeds: number; games: number };
+  stats: { merges: number; fusions: number; taps: number; ads: number; hatched: number; feeds: number; games: number; petGems: number };
   tutorial: number;
   pens: PenData[];
   activePen: number;
@@ -72,6 +73,12 @@ export interface GameState {
   ticketAt: number;
   weather: { id: WeatherId; until: number };
   best: Record<GameId, number>;
+  autoFeedUntil: number;
+  petGemsDay: string;
+  petGemsCount: number;
+  /** account & cloud-save bookkeeping */
+  accountNudged: boolean;
+  cloudSyncedAt: number;
 }
 
 export type MergeOutcome =
@@ -105,7 +112,7 @@ function freshState(): GameState {
     dailyDay: '', dailyStreak: 0, ribbons: 0, festivals: 0,
     noAds: false, gooPass: false, starterPack: false,
     settings: { sfx: true, music: true, haptics: true },
-    stats: { merges: 0, fusions: 0, taps: 0, ads: 0, hatched: 0, feeds: 0, games: 0 },
+    stats: { merges: 0, fusions: 0, taps: 0, ads: 0, hatched: 0, feeds: 0, games: 0, petGems: 0 },
     tutorial: 0,
     pens: [{ name: PEN_NAMES[0], theme: 'meadow' }],
     activePen: 0,
@@ -114,6 +121,11 @@ function freshState(): GameState {
     ticketAt: 0,
     weather: { id: 'sunny', until: now + 4 * 60_000 },
     best: { catch: 0, match: 0 },
+    autoFeedUntil: 0,
+    petGemsDay: '',
+    petGemsCount: 0,
+    accountNudged: false,
+    cloudSyncedAt: 0,
   };
 }
 
@@ -131,7 +143,36 @@ export class Game {
   // ── persistence ───────────────────────────────────────────
   async load() {
     const raw = await loadString(SAVE_KEY);
-    if (raw) {
+    if (raw) this.applyData(raw);
+    if (this.s.nextUid === 1) {
+      // A brand-new ranch starts with two mint slimes ready to merge.
+      this.addSlime('mint', 1, 0);
+      this.addSlime('mint', 1, 0);
+    }
+    this.checkOffline();
+  }
+
+  /** Serialized save, e.g. for cloud backup. */
+  exportSave(): string {
+    this.s.lastSeen = Date.now();
+    return JSON.stringify(this.s);
+  }
+
+  /** Replaces the running game with a save (from the cloud). */
+  importSave(raw: string): boolean {
+    const prev = this.s;
+    if (!this.applyData(raw)) { this.s = prev; return false; }
+    this.checkOffline();
+    this.save();
+    this.emit('reset');
+    this.emit('theme', this.activeTheme());
+    this.emit('weather', this.s.weather.id);
+    this.emit('change');
+    return true;
+  }
+
+  private applyData(raw: string): boolean {
+    {
       try {
         const data = JSON.parse(raw) as Partial<GameState>;
         const base = freshState();
@@ -151,16 +192,12 @@ export class Game {
         }
         this.s.activePen = Math.min(this.s.activePen ?? 0, this.s.pens.length - 1);
         this.s.v = 2;
+        return true;
       } catch (e) {
         console.warn('Corrupt save, starting fresh', e);
+        return false;
       }
     }
-    if (this.s.nextUid === 1) {
-      // A brand-new ranch starts with two mint slimes ready to merge.
-      this.addSlime('mint', 1, 0);
-      this.addSlime('mint', 1, 0);
-    }
-    this.checkOffline();
   }
 
   save() {
@@ -185,7 +222,8 @@ export class Game {
     const base = this.rawRate();
     const goo = base * (ms / 1000) + base * (boostedMs / 1000);
     this.pendingOffline = { goo, ms: away };
-    this.drainHappiness(away / 1000);
+    const drainFrom = Math.max(this.s.lastSeen, this.s.autoFeedUntil);
+    if (now > drainFrom) this.drainHappiness((now - drainFrom) / 1000);
     this.s.lastSeen = now;
   }
 
@@ -427,8 +465,29 @@ export class Game {
     return v;
   }
 
-  /** Petting: cheers the slime up and squeezes out a little goo. */
-  tap(uid: number): number {
+  petGemsLeft() {
+    return this.s.petGemsDay === dayKey() ? Math.max(0, PET_GEM_DAILY_CAP - this.s.petGemsCount) : PET_GEM_DAILY_CAP;
+  }
+  petGemChance(sl: SlimeData) { return PET_GEM_CHANCE + PET_GEM_HAPPY_BONUS * (sl.happy / 100); }
+
+  /** Petting: cheers the slime up, squeezes out a little goo, and sometimes turns up a gem. */
+  pet(uid: number): { goo: number; gems: number } {
+    const sl = this.getSlime(uid);
+    if (!sl) return { goo: 0, gems: 0 };
+    let gems = 0;
+    const left = this.petGemsLeft();
+    if (left > 0 && Math.random() < this.petGemChance(sl)) {
+      gems = Math.min(left, Math.random() < PET_GEM_JACKPOT ? 5 : 1);
+      if (this.s.petGemsDay !== dayKey()) { this.s.petGemsDay = dayKey(); this.s.petGemsCount = 0; }
+      this.s.petGemsCount += gems;
+      this.s.stats.petGems += gems;
+      this.s.gems += gems;
+      this.emit('change');
+    }
+    return { goo: this.tap(uid), gems };
+  }
+
+  private tap(uid: number): number {
     const sl = this.getSlime(uid);
     if (!sl) return 0;
     this.s.stats.taps++;
@@ -630,6 +689,10 @@ export class Game {
 
   // ── happiness & snacks ────────────────────────────────────
   private drainHappiness(sec: number) {
+    if (this.autoFeeding()) {
+      for (const sl of this.s.slimes) sl.happy = 100;
+      return;
+    }
     const d = (sec / HAPPY_DRAIN_SECONDS) * 100;
     for (const sl of this.s.slimes) sl.happy = Math.max(0, sl.happy - d);
   }
@@ -666,6 +729,25 @@ export class Game {
     let n = 0;
     for (const sl of hungry) { if (!this.feed(sl.uid, 'berry')) break; n++; }
     return n;
+  }
+
+  // ── auto-feeder ───────────────────────────────────────────
+  autoFeeding() { return Date.now() < this.s.autoFeedUntil; }
+  autoFeedRemaining() { return Math.max(0, this.s.autoFeedUntil - Date.now()); }
+  canAutoFeed(minutes: number) { return this.autoFeedRemaining() + minutes * 60_000 <= AUTOFEED_MAX_HOURS * 3600_000 + 60_000; }
+
+  addAutoFeed(minutes: number) {
+    const now = Date.now();
+    this.s.autoFeedUntil = Math.min(Math.max(now, this.s.autoFeedUntil) + minutes * 60_000, now + AUTOFEED_MAX_HOURS * 3600_000);
+    for (const sl of this.s.slimes) sl.happy = 100;
+    this.emit('change');
+  }
+
+  buyAutoFeed(minutes: number, gems: number): boolean {
+    if (!this.canAutoFeed(minutes) || !this.spendGems(gems)) return false;
+    this.addAutoFeed(minutes);
+    this.save();
+    return true;
   }
 
   // ── weather ───────────────────────────────────────────────
@@ -745,6 +827,11 @@ export class Game {
       ticketAt: keep.ticketAt,
       weather: keep.weather,
       best: keep.best,
+      autoFeedUntil: keep.autoFeedUntil,
+      petGemsDay: keep.petGemsDay,
+      petGemsCount: keep.petGemsCount,
+      accountNudged: keep.accountNudged,
+      cloudSyncedAt: keep.cloudSyncedAt,
       freeChestAt: keep.freeChestAt,
       adChestAt: keep.adChestAt,
       adGemsDay: keep.adGemsDay,

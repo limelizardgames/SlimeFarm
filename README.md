@@ -19,6 +19,9 @@ Built with **TypeScript + Vite + HTML Canvas**, wrapped for **iOS & Android with
 | **Offline earnings** | Goo keeps accumulating while you're away. The Goo Vault upgrade raises the cap. |
 | **Pens** | Build up to 6 pens. Each has its own name and theme, and every pen produces goo even while you're looking at another. Keep 3+ of one species in a pen for a **Harmony** bonus (+20%). Swipe sideways or use the ‹ › bar to switch pens; move slimes from their detail card. |
 | **Petting & snacks** | Each slime has happiness (up to +50% goo). It drains slowly and is restored by petting (tap, with combo hearts) and snacks dragged from the tray: Goo Berry, Jelly Bean (sugar rush, 2× for 5 min) and Golden Apple (+1 level). Hungry slimes show a thought bubble. |
+| **Gems from petting** | Every pet has a 2% chance (up to 4% for a fully happy slime) to turn up a gem. 10% of finds are a 5-gem jackpot. Capped at 25 gems/day so auto-clickers can't farm them. Tune in `src/game/data.ts` (`PET_GEM_*`). |
+| **Auto-Feeder** | Spend gems (30 min / 2 h / 8 h for 15 / 45 / 120 gems) or watch an ad (10 min) to keep every slime in every pen at full happiness, including while offline. Stacks up to 24 h. A berry-tossing feeder appears on the ranch while it runs. |
+| **Accounts & cloud save** | Optional sign-in with Apple, Google or Facebook. Backs the ranch up to the cloud, links purchases to the account, and asks which ranch to keep when device and cloud differ. Includes in-app account deletion. Runs in demo mode until Firebase is configured (see below). |
 | **Weather** | Sunny, cloudy, rain, thunderstorms, snow, wind and rainbows cycle every few minutes, each with full visual effects. Each weather boosts slimes of matching elements (fusions count every element in their family tree). Rainbows boost all slimes and double shiny chances. |
 | **Mini games** | **Goo Catch** (catch falling goo, dodge rocks) and **Slime Match** (memory pairs). Plays cost tickets (3 max, +1 every 20 min, or +1 per rewarded ad). Rewards are goo, snacks, Golden Apples and gems. |
 | **Grand Festival** | Prestige: reset your ranch to earn Blue Ribbons (+10% goo each, permanent). |
@@ -29,7 +32,7 @@ Built with **TypeScript + Vite + HTML Canvas**, wrapped for **iOS & Android with
 
 | Type | Where |
 |---|---|
-| **Rewarded ads** (opt-in) | 2× Goo Rush (+15 min, stacks to 4 h) · 2× offline earnings · Bonus chest (10 min cooldown) · Free gems (5/day) · 5× gift balloon · +1 game ticket · 2× game rewards |
+| **Rewarded ads** (opt-in) | 2× Goo Rush (+15 min, stacks to 4 h) · 2× offline earnings · Bonus chest (10 min cooldown) · Free gems (5/day) · 5× gift balloon · +1 game ticket · 2× game rewards · 10 min Auto-Feeder |
 | **Interstitials** | Only on closing a menu. At least 3 min apart, never in the first 5 min of a session, never for Remove Ads owners. |
 | **Banner** | Supported but **off** by default (`BANNER_ENABLED` in `src/config.ts`). It hurts the look of the ranch. |
 | **IAP: Remove Ads** $2.99 | Removes forced ads and adds +50 gems. Rewarded ads stay available as an optional bonus. |
@@ -82,6 +85,46 @@ Native projects are already set up in `ios/` and `android/`. They include portra
    - Screenshots.
 6. **Change app icons:** edit `public/icon.svg`, then run `node scripts/gen-assets.cjs` (requires Playwright) to regenerate every icon and splash screen.
 
+## Accounts (Apple / Google / Facebook sign-in)
+
+Sign-in uses **Firebase Authentication** via `@capacitor-firebase/authentication`: native sheets on iOS and Android, popups on the web. Cloud saves are stored in **Firestore** at `saves/{uid}`. Until it is switched on, the game runs a clearly-labelled **demo sign-in** that stays on the device, so every screen and flow can be tested now.
+
+Guest play always works. Signing in is optional, which is what the App Store requires for games.
+
+### Turning it on for the store builds
+
+1. **Firebase project:** create one at <https://console.firebase.google.com>.
+   - Add a **Web app** and paste its config into `src/config.ts` → `AUTH.firebase`.
+   - Set `AUTH.enabled = true` in `src/config.ts` **and** `ACCOUNTS_ENABLED = true` in `capacitor.config.ts`.
+2. **Native apps:** in the same Firebase project, add an **iOS app** (bundle id `com.limelizardgames.slimeranch`) and an **Android app**.
+   - Put `GoogleService-Info.plist` into `ios/App/App/` (and add it to the Xcode target).
+   - Put `google-services.json` into `android/app/`.
+3. **Providers:** enable these in *Authentication → Sign-in method*.
+   - **Google:** on Android, add your release and debug SHA-1/SHA-256 fingerprints in Firebase. On iOS, add the `REVERSED_CLIENT_ID` URL scheme in Xcode.
+   - **Apple:** in Xcode add the *Sign in with Apple* capability. In the Apple Developer portal, create a Services ID and key and enter them in Firebase.
+   - **Facebook:** create an app at <https://developers.facebook.com> and copy its App ID and secret into Firebase. Then follow the plugin's Facebook setup, which adds the App ID and client token to `Info.plist` and `strings.xml`.
+   - Set `rgcfaIncludeGoogle = true` and `rgcfaIncludeFacebook = true` in `android/variables.gradle`.
+   - Full guides: <https://github.com/capawesome-team/capacitor-firebase/tree/main/packages/authentication/docs>
+4. **Firestore:** create the database and publish these rules:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{db}/documents {
+       match /saves/{uid} {
+         allow read, write, delete: if request.auth != null && request.auth.uid == uid;
+       }
+     }
+   }
+   ```
+5. **RevenueCat:** no setup needed. Signing in calls `Purchases.logIn(uid)`, so purchases follow the account.
+6. **Run `npm run cap:sync`**, then build.
+
+### App Store / Play rules already handled
+- Sign in with Apple is offered alongside the other social logins (Apple guideline 4.8).
+- Accounts can be deleted inside the app (Settings → Account → Delete account), which also revokes the Apple token (guideline 5.1.1(v)).
+- Login is never required to play.
+- In the App Privacy / Data safety forms, declare **Email address / Name / User ID** as used for *App functionality* (account & cloud save).
+
 ## Project layout
 
 ```
@@ -93,7 +136,8 @@ src/
   render/background.ts themed sky / hills / fence painter
   render/weather.ts   rain, storms, snow, wind, rainbows
   ui/minigames.ts     Goo Catch & Slime Match
-  services/           ads, IAP, audio synth, haptics, durable storage
+  ui/account.ts       sign-in screen, cloud sync, save-conflict chooser
+  services/           ads, IAP, audio synth, haptics, durable storage, auth (+ authFirebase)
   ui/                 HUD, bottom sheets, modals, icons
   config.ts           ← ad unit IDs, product IDs, prices
 ```

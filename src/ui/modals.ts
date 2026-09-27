@@ -2,7 +2,7 @@ import { game, type GrantedReward } from '../game/game';
 import {
   SPECIES, TIER_NAMES, TIER_COLORS, VARIANTS, HATS, CHESTS, DAILY_REWARDS,
   AD_BOOST_MINUTES, AD_GEMS_REWARD, FESTIVAL_MIN_GOO, FOODS, WEATHER, MAX_PENS, MAX_TICKETS,
-  HARMONY_MIN, HARMONY_BONUS, THEMES,
+  HARMONY_MIN, HARMONY_BONUS, THEMES, AUTOFEED_PLANS, AUTOFEED_AD_MINUTES, AUTOFEED_MAX_HOURS,
   type ChestKind, type Reward, type FoodId,
 } from '../game/data';
 import { fmt, fmtTime } from '../game/format';
@@ -204,6 +204,7 @@ export function showSlimeInfo(uid: number) {
           `<button class="pen-opt ${i === sl.pen ? 'on' : ''} ${i !== sl.pen && game.isFull(i) ? 'full' : ''}" data-move="${i}">${p.name}<small>${game.penSlimes(i).length}/${game.capacity()}</small></button>`).join('')}</div>`
       : '';
     const perks = [
+      game.autoFeeding() ? `<span class="perk feeder">Auto-fed ${fmtTime(game.autoFeedRemaining())}</span>` : '',
       game.rushing(sl) ? `<span class="perk rush">Sugar rush ${fmtTime((sl.rushUntil ?? 0) - Date.now())}</span>` : '',
       game.harmony(sl) ? `<span class="perk harmony">Harmony +${HARMONY_BONUS * 100}%</span>` : '',
       game.weatherMult(sl.sp) > 1 ? `<span class="perk weather">${WEATHER[game.s.weather.id].name} ×${game.weatherMult(sl.sp)}</span>` : '',
@@ -681,3 +682,51 @@ export function showFestival() {
   });
 }
 
+
+// ─────────────────────────────────────────────────────────────
+//  Auto-Feeder
+// ─────────────────────────────────────────────────────────────
+export function showAutoFeed() {
+  queueModal(() => {
+    let m: ModalHandle;
+    const render = () => {
+      const on = game.autoFeeding();
+      const plans = AUTOFEED_PLANS.map((p) => {
+        const ok = game.canAutoFeed(p.minutes);
+        const len = p.minutes >= 60 ? `${p.minutes / 60} hours` : `${p.minutes} min`;
+        return `<div class="feed-plan">${p.tag ? `<span class="tag">${p.tag}</span>` : ''}
+          <b>${len}</b>
+          <button class="btn small pink ${ok && game.s.gems >= p.gems ? '' : 'disabled'}" data-plan="${p.id}"><span class="cost">${icon('gem')}${p.gems}</span></button>
+        </div>`;
+      }).join('');
+      return `
+        <div class="hero-art" style="height:110px"><div class="rays" style="--ray:rgba(255,140,192,.45)"></div><span class="ico" style="width:84px;height:84px;position:relative">${ICON.berry}</span></div>
+        <h2>Auto-Feeder</h2>
+        <p>Keeps <b>every slime in every pen</b> at full happiness (+50% goo), even while you're away. Time stacks up to ${AUTOFEED_MAX_HOURS} hours.</p>
+        ${on ? `<div class="feeder-on">${icon('check')} Running · ${fmtTime(game.autoFeedRemaining())} left</div>` : ''}
+        <div class="feed-plans">${plans}</div>
+        <div class="actions">${adBtn(`Free ${AUTOFEED_AD_MINUTES} min`, `data-ad ${game.canAutoFeed(AUTOFEED_AD_MINUTES) ? '' : 'disabled'}`)}</div>`;
+    };
+    m = openModal({ banner: 'Snack Sprinkler', bannerColors: ['#ff8cc0', '#d6357c'], html: render() });
+    const done = (min: number) => {
+      m.close();
+      audio.play('fanfare');
+      haptic('success');
+      ctx.ranch.celebrate();
+      toast(`Auto-Feeder on: +${min >= 60 ? min / 60 + 'h' : min + ' min'} of happy slimes`, 'berry');
+    };
+    m.card.querySelectorAll<HTMLElement>('[data-plan]').forEach((b) => b.addEventListener('click', () => {
+      const p = AUTOFEED_PLANS.find((x) => x.id === b.dataset.plan)!;
+      if (b.classList.contains('disabled')) {
+        audio.play('nope');
+        toast(game.canAutoFeed(p.minutes) ? 'Not enough gems' : `The feeder holds at most ${AUTOFEED_MAX_HOURS} hours`, 'gem');
+        return;
+      }
+      if (game.buyAutoFeed(p.minutes, p.gems)) done(p.minutes);
+    }));
+    m.card.querySelector('[data-ad]')!.addEventListener('click', () => {
+      if (!game.canAutoFeed(AUTOFEED_AD_MINUTES)) { audio.play('nope'); return; }
+      watchAd('Auto-Feeder', () => { game.addAutoFeed(AUTOFEED_AD_MINUTES); done(AUTOFEED_AD_MINUTES); });
+    });
+  });
+}

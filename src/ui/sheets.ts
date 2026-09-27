@@ -15,6 +15,7 @@ import { el, onAct, toast, confirmModal } from './dom';
 import { ctx } from './context';
 import { showSpecies, showFestival, adForGems, openChest } from './modals';
 import { isUnseen, markDexSeen } from './hud';
+import { accountCardHtml, showAccount } from './account';
 
 export type SheetId = 'upgrades' | 'dex' | 'shop' | 'settings';
 
@@ -161,6 +162,7 @@ export class Sheets {
         toast(owned.length ? 'Purchases restored ✓' : 'No purchases to restore', 'check');
         this.render();
       },
+      account: () => showAccount(),
       privacy: async () => {
         if (!(await ads.privacyOptions())) toast('Privacy options are available on the mobile app', 'info');
       },
@@ -340,6 +342,9 @@ function buildSettings(): string {
     `<div class="set-row">${icon(ic)}<b>${label}</b><button class="toggle ${on ? 'on' : ''}" data-act="toggle" data-id="${id}" aria-label="${label}"></button></div>`;
   const s = game.s;
   return `
+    <div class="section-title">${icon('fence')} Account</div>
+    ${accountCardHtml()}
+    <div class="section-title">${icon('sound')} Sound & feel</div>
     ${tg('sfx', st.sfx, 'sound', 'Sound Effects')}
     ${tg('music', st.music, 'music', 'Music')}
     ${tg('haptics', st.haptics, 'phone', 'Vibration')}
@@ -351,8 +356,10 @@ function buildSettings(): string {
       <div class="stat"><small>Fusions</small><b>${fmt(s.stats.fusions)}</b></div>
       <div class="stat"><small>Slime pets</small><b>${fmt(s.stats.taps)}</b></div>
       <div class="stat"><small>Festivals</small><b>${s.festivals}</b></div>
+      <div class="stat"><small>Gems from pets</small><b>${fmt(s.stats.petGems)}</b></div>
+      <div class="stat"><small>Snacks fed</small><b>${fmt(s.stats.feeds)}</b></div>
     </div>
-    <div class="section-title">${icon('gear')} Account</div>
+    <div class="section-title">${icon('gear')} Purchases & privacy</div>
     <div style="display:grid;gap:10px">
       <button class="btn blue small wide" data-act="restore">Restore Purchases</button>
       <button class="btn gray small wide" data-act="privacy">Privacy & Ad Choices</button>

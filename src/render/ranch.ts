@@ -35,7 +35,7 @@ interface Ent {
 }
 
 interface Part {
-  kind: 'dot' | 'star' | 'star5' | 'heart' | 'petal' | 'leaf' | 'snow' | 'ring' | 'drop' | 'bubble' | 'text' | 'spark' | 'goo';
+  kind: 'berry' | 'gem' | 'dot' | 'star' | 'star5' | 'heart' | 'petal' | 'leaf' | 'snow' | 'ring' | 'drop' | 'bubble' | 'text' | 'spark' | 'goo';
   x: number; y: number; vx: number; vy: number;
   life: number; max: number; size: number; color: string;
   g: number; rot: number; vr: number; drag: number;
@@ -45,7 +45,9 @@ interface Part {
 export interface RanchHandlers {
   merge(a: number, b: number): MergeOutcome;
   preview(a: SlimeData, b: SlimeData): { kind: 'merge' | 'fuse' | 'fail'; sp?: string; known?: boolean; reason?: string };
-  tap(uid: number): number;
+  tap(uid: number): { goo: number; gems: number };
+  gemFx(x: number, y: number, n: number): void;
+  autoFeeding(): boolean;
   release(uid: number): number;
   releaseValue(uid: number): number;
   longPress(uid: number): void;
@@ -94,6 +96,7 @@ export class Ranch {
   wx = new WeatherFx();
   foodHover: number | null = null;
   private combo = { uid: -1, n: 0, t: 0 };
+  private feedTimer = 1;
 
   constructor(canvas: HTMLCanvasElement, private h: RanchHandlers) {
     this.canvas = canvas;
@@ -194,6 +197,22 @@ export class Ranch {
 
     for (const e of this.ents.values()) this.updateEnt(e, dt);
     this.updateGift(dt);
+    if (this.h.autoFeeding()) {
+      this.feedTimer -= dt;
+      if (this.feedTimer < 0 && this.ents.size) {
+        this.feedTimer = rand(1.2, 2.4);
+        const targets = [...this.ents.values()].filter((e) => e.state === 'free' && e.egg <= 0);
+        const t = targets[Math.floor(Math.random() * targets.length)];
+        if (t) {
+          const [fx, fy] = this.feederPos();
+          const r = this.radius(t.data);
+          const dur = 0.8;
+          const tx = t.x, ty = t.y - r * 1.2;
+          this.emit('berry', fx, fy - 30, (tx - fx) / dur, (ty - (fy - 30)) / dur - 0.5 * 700 * dur, '#ff4d7a', dur, 7, 700, 0);
+          setTimeout(() => { if (this.ents.has(t.uid)) { t.sqV += 7; t.mood = 'excited'; t.moodT = 0.8; this.burst(t.x, t.y - r, '#ff8fb8', 5, 'dot', 80); } }, dur * 1000);
+        }
+      }
+    }
     this.wx.update(dt, this.wxHost());
 
     // long press
@@ -513,7 +532,7 @@ export class Ranch {
   }
 
   private tapEnt(e: Ent) {
-    const g = this.h.tap(e.uid);
+    const { goo: g, gems } = this.h.tap(e.uid);
     const r = this.radius(e.data);
     const now = performance.now();
     if (this.combo.uid === e.uid && now - this.combo.t < 900) this.combo.n++;
@@ -530,6 +549,16 @@ export class Ranch {
     this.burst(e.x, e.y - r * 0.8, paletteFor(SPECIES[e.data.sp], e.data.variant).c1, 6, 'goo', 120);
     this.h.sfx('squish');
     this.h.haptic('light');
+    if (gems > 0) {
+      const gy = e.y - r * 1.2;
+      this.emit('gem', e.x, gy, rand(-40, 40), -260, '#ff5fb8', 0.9, 13, 600, 0.2);
+      this.burst(e.x, gy, '#ffc2f0', 12, 'star', 180);
+      this.floatText(e.x - r * 1.2, e.y - r * 2.5, gems > 1 ? `JACKPOT +${gems}` : '+1 gem!', '#ffb3e6', gems > 1 ? 24 : 19);
+      this.h.sfx('shiny');
+      this.h.haptic('success');
+      const b = this.canvas.getBoundingClientRect();
+      setTimeout(() => this.h.gemFx(b.left + e.x, b.top + gy - 40, gems), 350);
+    }
   }
 
   private drop(e: Ent) {
@@ -630,6 +659,7 @@ export class Ranch {
     }
     if (this.press?.dragging) this.drawSellZone(ctx);
 
+    if (this.h.autoFeeding()) this.drawFeeder(ctx);
     for (const e of list) this.drawEnt(ctx, e);
 
     this.drawHover(ctx);
@@ -770,6 +800,48 @@ export class Ranch {
       ctx.fillStyle = '#5cc94b';
       ctx.beginPath(); ctx.ellipse(tx + 1, ty - 7, 4, 2, -0.4, 0, TAU); ctx.fill();
     }
+  }
+
+  private feederPos(): [number, number] { return [this.W * 0.5, this.penTop - 4]; }
+
+  /** The Auto-Feeder machine: a candy-striped hopper that tosses berries to slimes. */
+  private drawFeeder(ctx: CanvasRenderingContext2D) {
+    const [x, y] = this.feederPos();
+    const t = this.time;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#2b1740';
+    // shadow & post
+    ctx.fillStyle = 'rgba(20,10,40,0.2)';
+    ctx.beginPath(); ctx.ellipse(0, 4, 22, 6, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#c98b4f';
+    ctx.beginPath(); ctx.rect(-4, -26, 8, 30); ctx.fill(); ctx.stroke();
+    // hopper bowl
+    ctx.beginPath();
+    ctx.moveTo(-22, -46); ctx.lineTo(22, -46); ctx.lineTo(12, -24); ctx.lineTo(-12, -24); ctx.closePath();
+    const g = ctx.createLinearGradient(-22, 0, 22, 0);
+    g.addColorStop(0, '#ff8fc0'); g.addColorStop(1, '#d6357c');
+    ctx.fillStyle = g; ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.clip();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    for (let i = -3; i < 4; i++) ctx.fillRect(i * 10 + ((t * 8) % 10), -48, 4, 26);
+    ctx.restore();
+    // heaped berries
+    const bob = Math.sin(t * 6) * 1.2;
+    for (const [bx, by] of [[-11, -49], [-3, -52], [6, -50], [13, -48], [2, -56]] as [number, number][]) {
+      ctx.fillStyle = '#ff4d7a'; ctx.beginPath(); ctx.arc(bx, by + bob, 4.5, 0, TAU); ctx.fill(); ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    // spinning sprinkler head
+    ctx.save();
+    ctx.translate(0, -62 + bob);
+    ctx.rotate(t * 4);
+    ctx.fillStyle = '#ffe45c';
+    for (let i = 0; i < 3; i++) { ctx.rotate(TAU / 3); ctx.beginPath(); ctx.ellipse(8, 0, 7, 3.5, 0, 0, TAU); ctx.fill(); ctx.lineWidth = 1.6; ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, TAU); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.restore();
   }
 
   // ── feeding, weather & helpers used by the UI ─────────────
@@ -914,6 +986,28 @@ export class Ranch {
           ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (p.kind === 'goo' ? 1 : 0.5 + a * 0.5), 0, TAU); ctx.fill();
           if (p.kind === 'goo') { ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(p.x - p.size * 0.3, p.y - p.size * 0.3, p.size * 0.3, 0, TAU); ctx.fill(); }
           break;
+        case 'berry':
+          ctx.fillStyle = p.color;
+          for (const [dx, dy] of [[-3, 0], [3, 0], [0, 4]]) { ctx.beginPath(); ctx.arc(p.x + dx, p.y + dy, p.size * 0.55, 0, TAU); ctx.fill(); }
+          ctx.fillStyle = '#5cc94b';
+          ctx.beginPath(); ctx.ellipse(p.x, p.y - 5, 3.5, 1.8, 0, 0, TAU); ctx.fill();
+          break;
+        case 'gem': {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(Math.sin(p.rot) * 0.3);
+          const s = p.size;
+          ctx.beginPath();
+          ctx.moveTo(-s * 0.6, -s * 0.55); ctx.lineTo(s * 0.6, -s * 0.55); ctx.lineTo(s, -s * 0.1); ctx.lineTo(0, s * 0.8); ctx.lineTo(-s, -s * 0.1); ctx.closePath();
+          const gg = ctx.createLinearGradient(0, -s, 0, s);
+          gg.addColorStop(0, '#ffd6f4'); gg.addColorStop(0.5, '#ff5fb8'); gg.addColorStop(1, '#c02a8a');
+          ctx.fillStyle = gg; ctx.fill();
+          ctx.lineWidth = 2.2; ctx.strokeStyle = '#2b1740'; ctx.stroke();
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.fillRect(-s * 0.45, -s * 0.4, s * 0.25, s * 0.18);
+          ctx.restore();
+          break;
+        }
         case 'star':
           ctx.fillStyle = p.color;
           star4(ctx, p.x, p.y, p.size * (0.5 + a * 0.5), p.size * 0.28);

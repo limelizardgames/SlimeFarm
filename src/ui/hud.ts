@@ -6,7 +6,7 @@ import { audio } from '../services/audio';
 import { haptic } from '../services/haptics';
 import { icon } from './icons';
 import { el, onAct, setText, toast } from './dom';
-import { showBoost, showChests, showDaily, showFestival, showPens, showWeather, showGames } from './modals';
+import { showBoost, showChests, showDaily, showFestival, showPens, showWeather, showGames, showAutoFeed } from './modals';
 import { playGame } from './minigames';
 import { ctx } from './context';
 
@@ -45,6 +45,7 @@ export class Hud {
       <div class="left-stack">
         <button class="wx-chip" data-act="weather"><span class="wx-ico"></span><span><b data-wx-name>Sunny</b><small data-wx-sub></small></span></button>
         <div class="boost-chip">${icon('bolt')}<span data-boost>2×</span></div>
+        <button class="feeder-chip" data-act="autofeed">${icon('berry')}<span data-feeder>Auto-Feeder</span></button>
       </div>
       <div class="rail">
         <button class="rail-btn" data-act="daily">${icon('calendar')}<span class="lbl">Daily</span><span class="badge" data-daily-badge>!</span></button>
@@ -69,6 +70,7 @@ export class Hud {
           </div>`).join('')}
           <div class="snack-side">
             <button class="btn small" data-act="feedAll">Feed all</button>
+            <button class="btn small pink" data-act="autofeed">${icon('gem')} Auto-feed</button>
             <small>Drag a snack onto a slime</small>
           </div>
           <button class="snack-x" data-act="feed" aria-label="Close snacks">${icon('close')}</button>
@@ -121,6 +123,7 @@ export class Hud {
       boost: () => showBoost(),
       festival: () => showFestival(),
       weather: () => showWeather(),
+      autofeed: () => showAutoFeed(),
       pens: () => showPens(),
       penPrev: () => this.switchPen(-1),
       penNext: () => this.switchPen(1),
@@ -260,6 +263,10 @@ export class Hud {
       setText(this.root.querySelector('[data-wx-name]')!, w.name);
       setText(this.root.querySelector('[data-wx-sub]')!, w.id === 'rainbow' ? 'All +25%' : `${w.favors.map((e) => SPECIES[e].name).join(' & ')} ×${w.mult}`);
     }
+    const feeder = this.root.querySelector<HTMLElement>('.feeder-chip')!;
+    const feeding = game.autoFeeding();
+    feeder.classList.toggle('on', feeding);
+    if (feeding) setText(feeder.querySelector('[data-feeder]')!, `Auto-fed · ${fmtTime(game.autoFeedRemaining())}`);
     const tk = game.ticketsNow();
     const tb = this.root.querySelector<HTMLElement>('[data-ticket-badge]')!;
     tb.style.display = tk > 0 ? '' : 'none';
