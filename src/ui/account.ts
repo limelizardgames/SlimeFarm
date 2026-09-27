@@ -140,7 +140,7 @@ export function showAccount() {
     let m: ModalHandle;
     const render = (busy: AuthProvider | null = null) => {
       const a = auth.user;
-      const demo = auth.demo ? `<div class="demo-note">Demo mode: sign-in is simulated on this device until Firebase is configured for the app-store builds.</div>` : '';
+      const demo = auth.demo ? `<div class="demo-note">Demo mode: sign-in is simulated on this device until Supabase is connected for the app-store builds.</div>` : '';
       if (!a) {
         return `
           <div class="acct-hero">${icon('fence')}</div>

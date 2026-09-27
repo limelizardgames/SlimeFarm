@@ -72,7 +72,7 @@ export const PRODUCT_NAMES: Record<ProductKey, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────
-//  Accounts & cloud save (Firebase Authentication + Firestore)
+//  Accounts & cloud save (Supabase Auth + Postgres)
 //  While `enabled` is false the game uses a local DEMO sign-in so the
 //  account screens can be tested; nothing leaves the device.
 //  See README → "Accounts" for the store-release checklist.
@@ -81,15 +81,13 @@ export const AUTH = {
   enabled: false,
   /** Order shown on the sign-in screen. Apple must be offered on iOS when any other social login is (App Store guideline 4.8). */
   providers: ['apple', 'google', 'facebook'] as const,
-  /** Firebase console → Project settings → Your apps → Web app config */
-  firebase: {
-    apiKey: '',
-    authDomain: '',
-    projectId: '',
-    storageBucket: '',
-    messagingSenderId: '',
-    appId: '',
-  },
+  /** Supabase dashboard → Project Settings → API. The anon key is public by design; Row Level Security protects the data. */
+  supabaseUrl: '',
+  supabaseAnonKey: '',
+  /** Google Cloud console OAuth client IDs (the Web one is also entered in Supabase → Auth → Providers → Google). */
+  google: { webClientId: '', iOSClientId: '' },
+  /** Deep link the Facebook browser sign-in returns to. Also add it to Supabase → Auth → URL Configuration → Redirect URLs. */
+  redirectUrl: 'com.limelizardgames.slimeranch://auth-callback',
   /** Upload the save at most this often while playing (plus whenever the app is backgrounded). */
   syncEveryMs: 60_000,
 };

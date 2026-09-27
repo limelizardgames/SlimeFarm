@@ -1,0 +1,5 @@
+# Minimal Supabase CLI config (supabase link --project-ref <your-ref> fills in the rest).
+project_id = "slime-ranch-idle"
+
+[functions.delete-account]
+verify_jwt = true

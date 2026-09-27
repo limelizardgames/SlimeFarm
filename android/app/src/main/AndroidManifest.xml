@@ -23,6 +23,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Deep link used by browser sign-ins (Facebook, Apple on Android) to return to the game -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.limelizardgames.slimeranch" android:host="auth-callback" />
+            </intent-filter>
+
         </activity>
 
         <!-- Google AdMob: replace with YOUR AdMob Android App ID before release (this is Google's public test ID) -->

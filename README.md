@@ -21,7 +21,7 @@ Built with **TypeScript + Vite + HTML Canvas**, wrapped for **iOS & Android with
 | **Petting & snacks** | Each slime has happiness (up to +50% goo). It drains slowly and is restored by petting (tap, with combo hearts) and snacks dragged from the tray: Goo Berry, Jelly Bean (sugar rush, 2× for 5 min) and Golden Apple (+1 level). Hungry slimes show a thought bubble. |
 | **Gems from petting** | Every pet has a 2% chance (up to 4% for a fully happy slime) to turn up a gem. 10% of finds are a 5-gem jackpot. Capped at 25 gems/day so auto-clickers can't farm them. Tune in `src/game/data.ts` (`PET_GEM_*`). |
 | **Auto-Feeder** | Spend gems (30 min / 2 h / 8 h for 15 / 45 / 120 gems) or watch an ad (10 min) to keep every slime in every pen at full happiness, including while offline. Stacks up to 24 h. A berry-tossing feeder appears on the ranch while it runs. |
-| **Accounts & cloud save** | Optional sign-in with Apple, Google or Facebook. Backs the ranch up to the cloud, links purchases to the account, and asks which ranch to keep when device and cloud differ. Includes in-app account deletion. Runs in demo mode until Firebase is configured (see below). |
+| **Accounts & cloud save** | Optional sign-in with Apple, Google or Facebook via Supabase. Backs the ranch up to the cloud, links purchases to the account, and asks which ranch to keep when device and cloud differ. Includes in-app account deletion. Runs in demo mode until Supabase is configured (see below). |
 | **Weather** | Sunny, cloudy, rain, thunderstorms, snow, wind and rainbows cycle every few minutes, each with full visual effects. Each weather boosts slimes of matching elements (fusions count every element in their family tree). Rainbows boost all slimes and double shiny chances. |
 | **Mini games** | **Goo Catch** (catch falling goo, dodge rocks) and **Slime Match** (memory pairs). Plays cost tickets (3 max, +1 every 20 min, or +1 per rewarded ad). Rewards are goo, snacks, Golden Apples and gems. |
 | **Grand Festival** | Prestige: reset your ranch to earn Blue Ribbons (+10% goo each, permanent). |
@@ -85,44 +85,51 @@ Native projects are already set up in `ios/` and `android/`. They include portra
    - Screenshots.
 6. **Change app icons:** edit `public/icon.svg`, then run `node scripts/gen-assets.cjs` (requires Playwright) to regenerate every icon and splash screen.
 
-## Accounts (Apple / Google / Facebook sign-in)
+## Accounts (Apple / Google / Facebook sign-in) with Supabase
 
-Sign-in uses **Firebase Authentication** via `@capacitor-firebase/authentication`: native sheets on iOS and Android, popups on the web. Cloud saves are stored in **Firestore** at `saves/{uid}`. Until it is switched on, the game runs a clearly-labelled **demo sign-in** that stays on the device, so every screen and flow can be tested now.
+Sign-in and cloud saves run on **Supabase**.
 
-Guest play always works. Signing in is optional, which is what the App Store requires for games.
+**How each provider signs in:**
 
-### Turning it on for the store builds
+| Provider | iOS | Android | Web |
+|---|---|---|---|
+| Google | Native sheet → `signInWithIdToken` | Native sheet → `signInWithIdToken` | Supabase OAuth redirect |
+| Apple | Native sheet → `signInWithIdToken` | Supabase OAuth in the browser | Supabase OAuth redirect |
+| Facebook | Supabase OAuth in the browser | Supabase OAuth in the browser | Supabase OAuth redirect |
 
-1. **Firebase project:** create one at <https://console.firebase.google.com>.
-   - Add a **Web app** and paste its config into `src/config.ts` → `AUTH.firebase`.
-   - Set `AUTH.enabled = true` in `src/config.ts` **and** `ACCOUNTS_ENABLED = true` in `capacitor.config.ts`.
-2. **Native apps:** in the same Firebase project, add an **iOS app** (bundle id `com.limelizardgames.slimeranch`) and an **Android app**.
-   - Put `GoogleService-Info.plist` into `ios/App/App/` (and add it to the Xcode target).
-   - Put `google-services.json` into `android/app/`.
-3. **Providers:** enable these in *Authentication → Sign-in method*.
-   - **Google:** on Android, add your release and debug SHA-1/SHA-256 fingerprints in Firebase. On iOS, add the `REVERSED_CLIENT_ID` URL scheme in Xcode.
-   - **Apple:** in Xcode add the *Sign in with Apple* capability. In the Apple Developer portal, create a Services ID and key and enter them in Firebase.
-   - **Facebook:** create an app at <https://developers.facebook.com> and copy its App ID and secret into Firebase. Then follow the plugin's Facebook setup, which adds the App ID and client token to `Info.plist` and `strings.xml`.
-   - Set `rgcfaIncludeGoogle = true` and `rgcfaIncludeFacebook = true` in `android/variables.gradle`.
-   - Full guides: <https://github.com/capawesome-team/capacitor-firebase/tree/main/packages/authentication/docs>
-4. **Firestore:** create the database and publish these rules:
-   ```
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{db}/documents {
-       match /saves/{uid} {
-         allow read, write, delete: if request.auth != null && request.auth.uid == uid;
-       }
-     }
-   }
-   ```
-5. **RevenueCat:** no setup needed. Signing in calls `Purchases.logIn(uid)`, so purchases follow the account.
-6. **Run `npm run cap:sync`**, then build.
+- Native sheets come from `@capgo/capacitor-social-login`, with no Firebase and no Facebook SDK.
+- Browser sign-ins return to the game through the `com.limelizardgames.slimeranch://auth-callback` deep link. It is already registered in `Info.plist` and `AndroidManifest.xml`.
+- Saves live in the `saves` table, one row per player, protected by Row Level Security.
+- Until accounts are switched on, the game runs a clearly-labelled **demo sign-in** that stays on the device.
+- Guest play always works.
+
+### Turning it on
+1. **Database:** in your Supabase project, run `supabase/migrations/20260927000000_saves.sql`. You can use the SQL editor, or `supabase link` then `supabase db push`.
+2. **Account deletion function:** `supabase functions deploy delete-account`.
+   - For Sign in with Apple, also set the Apple secrets listed at the top of `supabase/functions/delete-account/index.ts`. This lets the function revoke the user's Apple token on deletion, as Apple requires.
+3. **Keys:** in `src/config.ts` → `AUTH`, fill `supabaseUrl` and `supabaseAnonKey` (Project Settings → API). Then set `AUTH.enabled = true` **and** `ACCOUNTS_ENABLED = true` in `capacitor.config.ts`.
+4. **Redirect URL:** Supabase → Authentication → URL Configuration → add `com.limelizardgames.slimeranch://auth-callback` (and your web URL if you host a web build) to **Redirect URLs**.
+5. **Google:** in Google Cloud console, create OAuth client IDs.
+   - Create a **Web** client and an **iOS** client, and put both IDs in `AUTH.google`.
+   - Create an **Android** client using your app's SHA-1.
+   - In Supabase → Auth → Providers → Google, enter the Web client ID and secret. Add the iOS and Android client IDs to *Authorized Client IDs*.
+   - On iOS, add the reversed iOS client ID as a URL scheme in Xcode.
+6. **Apple:**
+   - In Xcode, add the **Sign in with Apple** capability.
+   - In the Apple Developer portal, create a **Services ID** and a **Sign in with Apple key**.
+   - In Supabase → Auth → Providers → Apple, enter the Services ID and the generated secret, and add the app's bundle ID (`com.limelizardgames.slimeranch`) to the client IDs so native iOS tokens are accepted.
+7. **Facebook:** create an app at <https://developers.facebook.com>. Enter its App ID and secret in Supabase → Auth → Providers → Facebook. Add Supabase's callback URL (shown on that page) to Facebook Login → Valid OAuth Redirect URIs.
+8. **Build:** run `npm run cap:sync`, then build.
+
+Docs: [Supabase native mobile login](https://supabase.com/docs/guides/auth/social-login) · [capacitor-social-login](https://github.com/Cap-go/capacitor-social-login)
+
+> Supabase **free** projects pause after about a week without activity, and sign-in fails while paused. Un-pause from the dashboard during development. A live game with players stays active.
 
 ### App Store / Play rules already handled
 - Sign in with Apple is offered alongside the other social logins (Apple guideline 4.8).
-- Accounts can be deleted inside the app (Settings → Account → Delete account), which also revokes the Apple token (guideline 5.1.1(v)).
+- Accounts can be deleted inside the app (Settings → Account → Delete account). The Edge Function removes the user and their save, and revokes the Apple token (guideline 5.1.1(v)).
 - Login is never required to play.
+- Purchases follow the account: signing in calls RevenueCat `Purchases.logIn(<supabase user id>)`.
 - In the App Privacy / Data safety forms, declare **Email address / Name / User ID** as used for *App functionality* (account & cloud save).
 
 ## Project layout
@@ -137,7 +144,10 @@ src/
   render/weather.ts   rain, storms, snow, wind, rainbows
   ui/minigames.ts     Goo Catch & Slime Match
   ui/account.ts       sign-in screen, cloud sync, save-conflict chooser
-  services/           ads, IAP, audio synth, haptics, durable storage, auth (+ authFirebase)
+  services/           ads, IAP, audio synth, haptics, durable storage, auth (+ authSupabase)
   ui/                 HUD, bottom sheets, modals, icons
-  config.ts           ← ad unit IDs, product IDs, prices
+  config.ts           ← ad unit IDs, product IDs, prices, Supabase keys
+supabase/
+  migrations/         saves table + Row Level Security
+  functions/delete-account/  Edge Function for in-app account deletion
 ```

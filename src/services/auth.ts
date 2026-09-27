@@ -3,11 +3,12 @@ import { AUTH, type AuthProvider } from '../config';
 /**
  * Accounts & cloud saves.
  *
- *  • Firebase mode (AUTH.enabled = true): Sign in with Apple / Google / Facebook through
- *    @capacitor-firebase/authentication (native SDKs on iOS & Android, popups on web) and
- *    store the save in Firestore at `saves/{uid}`. Implemented in ./authFirebase.
+ *  • Supabase mode (AUTH.enabled = true): Sign in with Apple / Google natively through
+ *    @capgo/capacitor-social-login + supabase.auth.signInWithIdToken, Facebook through
+ *    Supabase's browser OAuth flow, and store the save in the `saves` table.
+ *    Implemented in ./authSupabase.
  *  • Demo mode (default): a simulated sign-in with a local "cloud", so the whole account
- *    flow can be tested before the Firebase project exists.
+ *    flow can be tested before the Supabase project is connected.
  *
  * Guest play always works; signing in is optional (App Store guideline 5.1.1).
  */
@@ -33,6 +34,7 @@ export interface AuthBackend {
   init(onChange: (a: Account | null) => void): Promise<void>;
   signIn(p: AuthProvider): Promise<Account | null>;
   signOut(): Promise<void>;
+  /** Deletes the account and its cloud save (server side). */
   deleteAccount(): Promise<void>;
   loadCloud(uid: string): Promise<CloudSave | null>;
   saveCloud(uid: string, save: CloudSave): Promise<void>;
@@ -85,7 +87,7 @@ class AuthService {
   onChange(fn: (a: Account | null) => void) { this.listeners.push(fn); }
 
   async init() {
-    const backend = AUTH.enabled ? await import('./authFirebase').then((m) => m.createFirebaseBackend()) : new DemoBackend();
+    const backend = AUTH.enabled ? await import('./authSupabase').then((m) => m.createSupabaseBackend()) : new DemoBackend();
     this.backend = backend;
     await backend.init((a) => {
       this.user = a;
