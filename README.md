@@ -1,0 +1,93 @@
+# 🟢 Slime Ranch Idle
+
+A cozy idle/merge game for phones and tablets. Collect colorful slimes that make goo, **merge** twins to level them up, **fuse** different species to discover new ones (Ember + Frost = Steam!), and fill out the Slimedex.
+
+Built with **TypeScript + Vite + HTML Canvas**, wrapped for **iOS & Android with Capacitor**. Every slime, hat, background, icon and sound is generated in code, so there are no art or audio assets to license.
+
+## Gameplay
+
+| System | Details |
+|---|---|
+| **Merge** | Drag a slime onto an identical one of the same level to level it up (×2.4 goo per level, max Lv 15). |
+| **Fuse** | Drop two *different* species of the *same level* together. 35 recipes, 41 species across 6 tiers (Common → Mythic King Slime). |
+| **Mutations** | Every hatch or merge can roll **Shiny** (×3) or **Golden** (×12). Merged slimes inherit the rarest mutation from their parents. |
+| **Hatching** | Free eggs drop on a timer. Paid hatches let you choose which unlocked egg to hatch. |
+| **Egg Research** | Unlock 6 elemental base species: Mint, Ember, Aqua, Terra, Frost, Zephyr. |
+| **Upgrades** | Gourmet Feed, Bigger Pen, Egg Incubator, Nutrient Yolk, Tickle Glove, Mutation Serum, Goo Vault. |
+| **Slimedex** | Each discovery gives gems and +2% goo. Hints show recipes once you've found both ingredients. |
+| **Tap / Long-press** | Tap a slime to squeeze out bonus goo. Long-press it for details, hats, and selling. Drag it to the SELL bubble to sell it. |
+| **Offline earnings** | Goo keeps accumulating while you're away. The Goo Vault upgrade raises the cap. |
+| **Grand Festival** | Prestige: reset your ranch to earn Blue Ribbons (+10% goo each, permanent). |
+| **Cosmetics** | 12 hats and 5 ranch themes: Meadow, Sunset, Frosty, Moonlit, Candy. |
+| **Retention** | 7-day daily login calendar, free chest every 4 h, and a gift balloon that drifts across the sky. |
+
+## Monetisation
+
+| Type | Where |
+|---|---|
+| **Rewarded ads** (opt-in) | 2× Goo Rush (+15 min, stacks to 4 h) · 2× offline earnings · Bonus chest (10 min cooldown) · Free gems (5/day) · 5× gift balloon |
+| **Interstitials** | Only on closing a menu. At least 3 min apart, never in the first 5 min of a session, never for Remove Ads owners. |
+| **Banner** | Supported but **off** by default (`BANNER_ENABLED` in `src/config.ts`). It hurts the look of the ranch. |
+| **IAP: Remove Ads** $2.99 | Removes forced ads and adds +50 gems. Rewarded ads stay available as an optional bonus. |
+| **IAP: Starter Bundle** $4.99 | No ads + 300 gems + Epic chest + Royal Crown hat |
+| **IAP: Golden Goo Pass** $4.99 | Permanent 2× goo |
+| **IAP: Gem packs** $0.99 / $4.99 / $9.99 | 100 / 600 / 1400 gems. Gems buy chests, hats, themes and boosts. |
+
+In a web browser, ads and purchases are **simulated** (a test-ad overlay and a "test purchase" confirmation), so every flow can be tested without a store.
+
+- **Ads:** Google AdMob via `@capacitor-community/admob`, including the GDPR/UMP consent form and the iOS App Tracking Transparency prompt.
+- **IAP:** RevenueCat via `@revenuecat/purchases-capacitor`, which handles StoreKit, Play Billing, receipt validation and Restore Purchases.
+
+## Develop
+
+```bash
+npm install
+npm run dev        # http://localhost:5173 — open with your browser's phone emulation
+npm run build      # typecheck + production build into dist/
+```
+
+## Ship to the App Store / Google Play
+
+Native projects are already set up in `ios/` and `android/`. They include portrait lock, app icons, splash screens and AdMob manifest entries.
+
+1. **AdMob:** create an app for each platform at <https://admob.google.com>, then create *Rewarded*, *Interstitial* (and optionally *Banner*) ad units.
+   - Put the unit IDs in `src/config.ts` → `ADMOB`, and set `AD_TESTING = false` for release builds.
+   - Replace the **test App IDs** in `ios/App/App/Info.plist` (`GADApplicationIdentifier`) and `android/app/src/main/AndroidManifest.xml` (`com.google.android.gms.ads.APPLICATION_ID`).
+   - Add Google's full `SKAdNetworkItems` list to `Info.plist`.
+2. **Products:** create these in App Store Connect and Google Play Console:
+
+   | Product ID | Type |
+   |---|---|
+   | `slimeranch.remove_ads` | non-consumable |
+   | `slimeranch.starter_pack` | non-consumable |
+   | `slimeranch.goo_pass` | non-consumable |
+   | `slimeranch.gems_small` | consumable |
+   | `slimeranch.gems_medium` | consumable |
+   | `slimeranch.gems_large` | consumable |
+
+3. **RevenueCat:** create a project, connect both stores, import the products, and paste the public SDK keys into `src/config.ts` → `REVENUECAT`.
+4. **Build:**
+   ```bash
+   npm run cap:ios       # builds, syncs, opens Xcode → set Team & signing → Product ▸ Archive
+   npm run cap:android   # builds, syncs, opens Android Studio → Build ▸ Generate Signed Bundle
+   ```
+5. **Store listing:**
+   - Privacy policy URL (required, because the app shows ads).
+   - App Privacy "nutrition label": Identifiers/Usage Data used for third-party advertising.
+   - Age rating.
+   - Screenshots.
+6. **Change app icons:** edit `public/icon.svg`, then run `node scripts/gen-assets.cjs` (requires Playwright) to regenerate every icon and splash screen.
+
+## Project layout
+
+```
+src/
+  game/data.ts        species, recipes, upgrades, hats, themes, tuning constants
+  game/game.ts        game state, economy, save/load, offline, prestige
+  render/slimeArt.ts  procedural slime renderer (body, face, patterns, toppers, hats)
+  render/ranch.ts     the ranch scene: hop physics, particles, drag-to-merge input
+  render/background.ts themed sky / hills / fence painter
+  services/           ads, IAP, audio synth, haptics, durable storage
+  ui/                 HUD, bottom sheets, modals, icons
+  config.ts           ← ad unit IDs, product IDs, prices
+```

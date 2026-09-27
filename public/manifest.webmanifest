@@ -1,0 +1,10 @@
+{
+  "name": "Slime Ranch Idle",
+  "short_name": "Slime Ranch",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1d1040",
+  "theme_color": "#1d1040",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
