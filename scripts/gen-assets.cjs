@@ -37,13 +37,15 @@ async function shot(page, w, h, html, out, transparent = false) {
     await shot(page, f, f, img(b64(square), f, f), path.join(dir, 'ic_launcher_foreground.png'), true);
   }
 
-  // Splash screens: slime on the game's deep purple
-  const splash = (w, h) => {
-    const s = Math.round(Math.min(w, h) * 0.32);
-    return `<div style="width:${w}px;height:${h}px;display:grid;place-items:center;background:radial-gradient(circle at 50% 42%, #4b2a9a, #1d1040 70%)">${img(b64(svg), s, s, 'border-radius:22%;box-shadow:0 ' + s * 0.06 + 'px 0 #0b0520')}</div>`;
+  // Splash screens: the Lime Lizard Games studio card (the web boot screen picks up from here).
+  const studio = fs.readFileSync(path.join(root, 'src/assets/lime-lizard-games.svg'), 'utf8');
+  // iOS scales the 2732² image to fill the screen, so a phone only shows the middle ~45% of it; keep the logo small there.
+  const splash = (w, h, k = 0.5) => {
+    const s = Math.round(Math.min(w, h) * k);
+    return `<div style="width:${w}px;height:${h}px;display:grid;place-items:center;background:radial-gradient(circle at 50% 44%, #2c3633, #131917 58%, #0b0f0e)">${img(b64(studio), s, Math.round(s * 1026.42 / 1166.18))}</div>`;
   };
   for (const f of ['splash-2732x2732.png', 'splash-2732x2732-1.png', 'splash-2732x2732-2.png'])
-    await shot(page, 2732, 2732, splash(2732, 2732), path.join(root, 'ios/App/App/Assets.xcassets/Splash.imageset', f));
+    await shot(page, 2732, 2732, splash(2732, 2732, 0.26), path.join(root, 'ios/App/App/Assets.xcassets/Splash.imageset', f));
   const sizes = { mdpi: [320, 480], hdpi: [480, 800], xhdpi: [720, 1280], xxhdpi: [960, 1600], xxxhdpi: [1280, 1920] };
   for (const [d, [w, h]] of Object.entries(sizes)) {
     await shot(page, w, h, splash(w, h), path.join(root, `android/app/src/main/res/drawable-port-${d}/splash.png`));

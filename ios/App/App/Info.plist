@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Slime Ranch Idle</string>
+        <string>Slimepedia</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -73,14 +73,14 @@
 			<string>auth-callback</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.limelizardgames.slimeranch</string>
+				<string>com.limelizardgames.slimepedia</string>
 			</array>
 		</dict>
 	</array>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~1458002511</string>
 	<key>NSUserTrackingUsageDescription</key>
-	<string>Your data will be used to show you more relevant ads, which keeps Slime Ranch free to play.</string>
+	<string>Your data will be used to show you more relevant ads, which keeps Slimepedia free to play.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict><key>SKAdNetworkIdentifier</key><string>cstr6suwn9.skadnetwork</string></dict>

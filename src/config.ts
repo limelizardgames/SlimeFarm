@@ -1,3 +1,7 @@
+export const APP_NAME = 'Slimepedia: Idle Slimes';
+export const APP_VERSION = '1.0.0';
+export const STUDIO = 'Lime Lizard Games';
+
 // ─────────────────────────────────────────────────────────────
 //  Monetisation configuration
 //  Replace the placeholder IDs below before shipping to a store.
@@ -36,12 +40,12 @@ export const REVENUECAT = {
 
 /** Product identifiers — create identical IDs in App Store Connect & Google Play Console. */
 export const PRODUCTS = {
-  removeAds: 'slimeranch.remove_ads',
-  starter: 'slimeranch.starter_pack',
-  gooPass: 'slimeranch.goo_pass',
-  gemsSmall: 'slimeranch.gems_small',
-  gemsMedium: 'slimeranch.gems_medium',
-  gemsLarge: 'slimeranch.gems_large',
+  removeAds: 'slimepedia.remove_ads',
+  starter: 'slimepedia.starter_pack',
+  gooPass: 'slimepedia.goo_pass',
+  gemsSmall: 'slimepedia.gems_small',
+  gemsMedium: 'slimepedia.gems_medium',
+  gemsLarge: 'slimepedia.gems_large',
 } as const;
 
 export type ProductKey = keyof typeof PRODUCTS;
@@ -87,7 +91,7 @@ export const AUTH = {
   /** Google Cloud console OAuth client IDs (the Web one is also entered in Supabase → Auth → Providers → Google). */
   google: { webClientId: '', iOSClientId: '' },
   /** Deep link the Facebook browser sign-in returns to. Also add it to Supabase → Auth → URL Configuration → Redirect URLs. */
-  redirectUrl: 'com.limelizardgames.slimeranch://auth-callback',
+  redirectUrl: 'com.limelizardgames.slimepedia://auth-callback',
   /** Upload the save at most this often while playing (plus whenever the app is backgrounded). */
   syncEveryMs: 60_000,
 };

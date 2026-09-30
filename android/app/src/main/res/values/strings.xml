@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Slime Ranch Idle</string>
-    <string name="title_activity_main">Slime Ranch Idle</string>
-    <string name="package_name">com.limelizardgames.slimeranch</string>
-    <string name="custom_url_scheme">com.limelizardgames.slimeranch</string>
+    <string name="app_name">Slimepedia</string>
+    <string name="title_activity_main">Slimepedia: Idle Slimes</string>
+    <string name="package_name">com.limelizardgames.slimepedia</string>
+    <string name="custom_url_scheme">com.limelizardgames.slimepedia</string>
 </resources>

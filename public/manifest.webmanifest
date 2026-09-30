@@ -1,6 +1,6 @@
 {
-  "name": "Slime Ranch Idle",
-  "short_name": "Slime Ranch",
+  "name": "Slimepedia: Idle Slimes",
+  "short_name": "Slimepedia",
   "start_url": "./",
   "display": "standalone",
   "orientation": "portrait",

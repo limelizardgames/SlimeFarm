@@ -1,4 +1,10 @@
-# 🟢 Slime Ranch Idle
+# 🟢 Slimepedia: Idle Slimes
+
+*A game by **Lime Lizard Games**: where play evolves.*
+
+- **Store name:** Slimepedia: Idle Slimes
+- **Home-screen name:** Slimepedia
+- **Bundle / package ID:** `com.limelizardgames.slimepedia`
 
 A cozy idle/merge game for phones and tablets. Collect colorful slimes that make goo, **merge** twins to level them up, **fuse** different species to discover new ones (Ember + Frost = Steam!), and fill out the Slimedex.
 
@@ -65,12 +71,12 @@ Native projects are already set up in `ios/` and `android/`. They include portra
 
    | Product ID | Type |
    |---|---|
-   | `slimeranch.remove_ads` | non-consumable |
-   | `slimeranch.starter_pack` | non-consumable |
-   | `slimeranch.goo_pass` | non-consumable |
-   | `slimeranch.gems_small` | consumable |
-   | `slimeranch.gems_medium` | consumable |
-   | `slimeranch.gems_large` | consumable |
+   | `slimepedia.remove_ads` | non-consumable |
+   | `slimepedia.starter_pack` | non-consumable |
+   | `slimepedia.goo_pass` | non-consumable |
+   | `slimepedia.gems_small` | consumable |
+   | `slimepedia.gems_medium` | consumable |
+   | `slimepedia.gems_large` | consumable |
 
 3. **RevenueCat:** create a project, connect both stores, import the products, and paste the public SDK keys into `src/config.ts` → `REVENUECAT`.
 4. **Build:**
@@ -83,7 +89,25 @@ Native projects are already set up in `ios/` and `android/`. They include portra
    - App Privacy "nutrition label": Identifiers/Usage Data used for third-party advertising.
    - Age rating.
    - Screenshots.
-6. **Change app icons:** edit `public/icon.svg`, then run `node scripts/gen-assets.cjs` (requires Playwright) to regenerate every icon and splash screen.
+6. **Change app icons:** edit `public/icon.svg`, then run `node scripts/gen-assets.cjs` (requires Playwright) to regenerate every icon and splash screen. The splash screens show the Lime Lizard Games logo from `src/assets/lime-lizard-games.svg`.
+
+### Accounts needed for launch
+
+| Service | What it's for | Cost |
+|---|---|---|
+| **Apple Developer Program** (enrol as an organization under Lime Lizard Games; needs a D-U-N-S number) | App Store, Sign in with Apple, TestFlight | $99 / year |
+| **Google Play Console** (organization account) | Play Store, internal testing | $25 once |
+| **Google AdMob** | Ads | Free |
+| **RevenueCat** | In-app purchases and Remove Ads | Free until $2.5k/month revenue |
+| **Supabase** (you already have this) | Sign-in and cloud saves | Free tier |
+| **Google Cloud project** (same Google account as AdMob) | Google sign-in client IDs | Free |
+| **Meta for Developers** | Facebook sign-in | Free |
+| **A website** (e.g. limelizardgames.com) | Privacy policy, support URL, and `app-ads.txt` for AdMob | Domain ~$12 / year |
+| **A Mac with Xcode** (or a cloud Mac service) | Building and uploading the iOS app | n/a |
+
+### Studio branding
+
+The original Lime Lizard Games logos are in `brand/lime-lizard-games/`. Each comes in a `for-dark-bg` and a `for-light-bg` version, in full, head-only and wordmark-only variants.
 
 ## Accounts (Apple / Google / Facebook sign-in) with Supabase
 
@@ -98,7 +122,7 @@ Sign-in and cloud saves run on **Supabase**.
 | Facebook | Supabase OAuth in the browser | Supabase OAuth in the browser | Supabase OAuth redirect |
 
 - Native sheets come from `@capgo/capacitor-social-login`, with no Firebase and no Facebook SDK.
-- Browser sign-ins return to the game through the `com.limelizardgames.slimeranch://auth-callback` deep link. It is already registered in `Info.plist` and `AndroidManifest.xml`.
+- Browser sign-ins return to the game through the `com.limelizardgames.slimepedia://auth-callback` deep link. It is already registered in `Info.plist` and `AndroidManifest.xml`.
 - Saves live in the `saves` table, one row per player, protected by Row Level Security.
 - Until accounts are switched on, the game runs a clearly-labelled **demo sign-in** that stays on the device.
 - Guest play always works.
@@ -108,7 +132,7 @@ Sign-in and cloud saves run on **Supabase**.
 2. **Account deletion function:** `supabase functions deploy delete-account`.
    - For Sign in with Apple, also set the Apple secrets listed at the top of `supabase/functions/delete-account/index.ts`. This lets the function revoke the user's Apple token on deletion, as Apple requires.
 3. **Keys:** in `src/config.ts` → `AUTH`, fill `supabaseUrl` and `supabaseAnonKey` (Project Settings → API). Then set `AUTH.enabled = true` **and** `ACCOUNTS_ENABLED = true` in `capacitor.config.ts`.
-4. **Redirect URL:** Supabase → Authentication → URL Configuration → add `com.limelizardgames.slimeranch://auth-callback` (and your web URL if you host a web build) to **Redirect URLs**.
+4. **Redirect URL:** Supabase → Authentication → URL Configuration → add `com.limelizardgames.slimepedia://auth-callback` (and your web URL if you host a web build) to **Redirect URLs**.
 5. **Google:** in Google Cloud console, create OAuth client IDs.
    - Create a **Web** client and an **iOS** client, and put both IDs in `AUTH.google`.
    - Create an **Android** client using your app's SHA-1.
@@ -117,7 +141,7 @@ Sign-in and cloud saves run on **Supabase**.
 6. **Apple:**
    - In Xcode, add the **Sign in with Apple** capability.
    - In the Apple Developer portal, create a **Services ID** and a **Sign in with Apple key**.
-   - In Supabase → Auth → Providers → Apple, enter the Services ID and the generated secret, and add the app's bundle ID (`com.limelizardgames.slimeranch`) to the client IDs so native iOS tokens are accepted.
+   - In Supabase → Auth → Providers → Apple, enter the Services ID and the generated secret, and add the app's bundle ID (`com.limelizardgames.slimepedia`) to the client IDs so native iOS tokens are accepted.
 7. **Facebook:** create an app at <https://developers.facebook.com>. Enter its App ID and secret in Supabase → Auth → Providers → Facebook. Add Supabase's callback URL (shown on that page) to Facebook Login → Valid OAuth Redirect URIs.
 8. **Build:** run `npm run cap:sync`, then build.
 

@@ -1,7 +1,7 @@
 // Supabase Edge Function: permanently deletes the calling player's account.
 // Deploy:  supabase functions deploy delete-account
 // Optional (recommended for Sign in with Apple, required by Apple's account-deletion rules):
-//   supabase secrets set APPLE_TEAM_ID=... APPLE_KEY_ID=... APPLE_CLIENT_ID=com.limelizardgames.slimeranch \
+//   supabase secrets set APPLE_TEAM_ID=... APPLE_KEY_ID=... APPLE_CLIENT_ID=com.limelizardgames.slimepedia \
 //     APPLE_PRIVATE_KEY="$(cat AuthKey_XXXX.p8)"
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { SignJWT, importPKCS8 } from 'npm:jose@5';

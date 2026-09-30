@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────
-   Slime Ranch Idle — UI design system
+   Slimepedia: Idle Slimes — UI design system
    Chunky, glossy "jelly candy" look: ink outlines, 3D pressable
    buttons, rounded type, soft glows.
    ───────────────────────────────────────────────────────────── */
@@ -57,11 +57,23 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 /* ── boot splash ─────────────────────────────────────────── */
 #boot {
   position: fixed; inset: 0; z-index: 100;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: grid; place-items: center;
   background: radial-gradient(circle at 50% 40%, #4b2a9a, #1d1040 70%);
   transition: opacity .5s ease, visibility .5s;
 }
+/* Studio card: charcoal with a soft glow so the lizard's dark body still reads. Matches the native splash. */
+#boot::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 44%, #2c3633, #131917 58%, #0b0f0e);
+  transition: opacity .55s ease;
+}
+#boot:not(.studio)::before { opacity: 0; }
+#boot > div { grid-area: 1 / 1; position: relative; display: flex; flex-direction: column; align-items: center; transition: opacity .45s ease, transform .6s cubic-bezier(.2,.9,.3,1.2); }
+.boot-studio img { width: min(64vw, 320px); height: auto; display: block; animation: studioIn .7s cubic-bezier(.2,.9,.3,1) both; }
+#boot:not(.studio) .boot-studio { opacity: 0; transform: scale(.94); }
+#boot.studio .boot-game { opacity: 0; transform: scale(.9); pointer-events: none; }
 #boot.gone { opacity: 0; visibility: hidden; }
+@keyframes studioIn { from { opacity: 0; transform: translateY(8px) scale(.96); } }
 .boot-blob {
   width: 110px; height: 90px; position: relative;
   background: radial-gradient(circle at 35% 30%, #e6fff0, #a8ffc4 35%, #1fb468);
@@ -70,8 +82,13 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 }
 .boot-eye { position: absolute; top: 40%; width: 13px; height: 18px; border-radius: 50%; background: var(--ink); }
 .boot-eye.l { left: 30%; } .boot-eye.r { right: 30%; }
-.boot-title { margin-top: 22px; font: 700 34px var(--font-display); color: #fff; letter-spacing: .5px; text-shadow: 0 4px 0 #0b0520; }
-.boot-sub { font: 700 14px var(--font-display); color: #b8f5c9; letter-spacing: 8px; }
+.boot-title { margin-top: 22px; font: 700 40px var(--font-display); color: #fff; letter-spacing: .5px; text-shadow: 0 4px 0 #0b0520; }
+.boot-title {
+  background: linear-gradient(#e6fff0, #8ef5b4 55%, #3fd07e); -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: none; filter: drop-shadow(0 3px 0 #0e5a34) drop-shadow(0 5px 0 #0b0520);
+}
+.boot-sub { margin-top: 4px; font: 700 14px var(--font-display); color: #b8f5c9; letter-spacing: 7px; padding-left: 7px; }
+.boot-by { position: absolute; top: calc(100% + 90px); font: 700 11px var(--font-display); letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,.45); white-space: nowrap; }
 @keyframes bootHop {
   0%, 100% { transform: translateY(0) scale(1.08, .92); }
   45% { transform: translateY(-26px) scale(.94, 1.08); }
@@ -789,3 +806,13 @@ button.side-chip { cursor: pointer; }
 .save-card small { color: var(--ink-soft); font-size: 11px; }
 .save-card.best { background: linear-gradient(180deg, #fff, #eafff1); }
 .save-card:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+
+/* ── about / studio credit ───────────────────────────────── */
+.about-card {
+  margin-top: 18px; display: flex; align-items: center; gap: 14px; padding: 12px 14px;
+  border-radius: 18px; background: radial-gradient(circle at 20% 50%, #2c3633, #131917 80%); color: #fff;
+}
+.about-card img { width: 64px; height: auto; flex: none; }
+.about-card b { display: block; font: 700 16px var(--font-display); }
+.about-card small { display: block; font-size: 12px; opacity: .7; }
+

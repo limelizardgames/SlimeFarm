@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.limelizardgames.slimeranch"
+    namespace = "com.limelizardgames.slimepedia"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.limelizardgames.slimeranch"
+        applicationId "com.limelizardgames.slimepedia"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

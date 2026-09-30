@@ -1,4 +1,4 @@
-package com.limelizardgames.slimeranch;
+package com.limelizardgames.slimepedia;
 
 import com.getcapacitor.BridgeActivity;
 

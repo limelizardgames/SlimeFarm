@@ -1,4 +1,4 @@
--- Cloud saves for Slime Ranch Idle: one row per player.
+-- Cloud saves for Slimepedia: Idle Slimes: one row per player.
 create table if not exists public.saves (
   user_id           uuid primary key references auth.users (id) on delete cascade,
   data              text not null check (length(data) < 2000000),

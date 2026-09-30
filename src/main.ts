@@ -22,6 +22,12 @@ import { FALLBACK_PRICES, PRODUCT_NAMES } from './config';
 import { initAccount, maybeNudgeAccount } from './ui/account';
 import { icon } from './ui/icons';
 
+// Boot sequence: studio card (continues the native splash) → game title → ranch.
+const bootStart = performance.now();
+const STUDIO_MS = 1500, TITLE_MS = 1100;
+const bootEl = document.getElementById('boot');
+const titleAt = new Promise<void>((r) => setTimeout(() => { bootEl?.classList.remove('studio'); r(); }, STUDIO_MS));
+
 async function boot() {
   await game.load();
   applySettings();
@@ -164,12 +170,14 @@ async function boot() {
   requestAnimationFrame(frame);
 
   // ── reveal
-  setTimeout(() => document.getElementById('boot')?.classList.add('gone'), 350);
+  await titleAt;
+  const wait = Math.max(350, bootStart + STUDIO_MS + TITLE_MS - performance.now());
+  setTimeout(() => bootEl?.classList.add('gone'), wait);
   setTimeout(() => {
     showOffline();
     showDaily();
     startTutorial();
-  }, 700);
+  }, wait + 350);
 }
 
 // ─────────────────────────────────────────────────────────────

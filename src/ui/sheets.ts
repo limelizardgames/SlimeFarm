@@ -1,4 +1,5 @@
 import { game } from '../game/game';
+import studioLogo from '../assets/lime-lizard-head.svg';
 import {
   SPECIES, SPECIES_LIST, BASE_IDS, UPGRADES, EGG_UNLOCK_COST, TIER_NAMES, TIER_COLORS,
   HATS, THEMES, AD_GEMS_REWARD, FESTIVAL_MIN_GOO, type HatId, type ThemeId,
@@ -9,7 +10,7 @@ import { ads } from '../services/ads';
 import { iap } from '../services/iap';
 import { audio } from '../services/audio';
 import { haptic, setHaptics } from '../services/haptics';
-import { GEM_PACKS, type ProductKey } from '../config';
+import { APP_VERSION, GEM_PACKS, type ProductKey } from '../config';
 import { icon } from './icons';
 import { el, onAct, toast, confirmModal } from './dom';
 import { ctx } from './context';
@@ -31,7 +32,7 @@ const DEFS: Record<SheetId, SheetDef> = {
   upgrades: { title: 'Upgrades', sub: () => `Global goo ×${fmt(game.globalMult(), 2)}`, icon: 'up', colors: ['#7ee8a0', '#22b560'], build: buildUpgrades },
   dex: { title: 'Slimedex', sub: () => `${game.discoveredCount()} / ${SPECIES_LIST.length} discovered`, icon: 'book', colors: ['#7fd0ff', '#247fd6'], build: buildDex },
   shop: { title: 'Shop', sub: () => 'Treats, hats & more', icon: 'bag', colors: ['#ff9ccb', '#d6357c'], build: buildShop },
-  settings: { title: 'Settings', sub: () => 'Slime Ranch Idle v1.0', icon: 'gear', colors: ['#b894ff', '#6a3fd6'], build: buildSettings },
+  settings: { title: 'Settings', sub: () => `Slimepedia: Idle Slimes v${APP_VERSION}`, icon: 'gear', colors: ['#b894ff', '#6a3fd6'], build: buildSettings },
 };
 
 export class Sheets {
@@ -365,5 +366,9 @@ function buildSettings(): string {
       <button class="btn gray small wide" data-act="privacy">Privacy & Ad Choices</button>
       <button class="btn pink small wide" data-act="reset">Reset Progress</button>
     </div>
-    <p class="fine">Made with goo & love. Your progress is saved on this device automatically.</p>`;
+    <div class="about-card">
+      <img src="${studioLogo}" alt="Lime Lizard Games" />
+      <div><b>Slimepedia: Idle Slimes</b><small>Version ${APP_VERSION}</small><small>© ${new Date().getFullYear()} Lime Lizard Games</small></div>
+    </div>
+    <p class="fine">Where play evolves. Your progress is saved on this device automatically.</p>`;
 }

@@ -17,17 +17,17 @@ const nativePlugins = [
 ];
 
 const config: CapacitorConfig = {
-  appId: 'com.limelizardgames.slimeranch',
-  appName: 'Slime Ranch Idle',
+  appId: 'com.limelizardgames.slimepedia',
+  appName: 'Slimepedia',
   webDir: 'dist',
   includePlugins: nativePlugins,
-  backgroundColor: '#1d1040',
+  backgroundColor: '#131917',
   ios: {
     contentInset: 'never',
-    backgroundColor: '#1d1040',
+    backgroundColor: '#131917',
   },
   android: {
-    backgroundColor: '#1d1040',
+    backgroundColor: '#131917',
   },
   plugins: {
     SocialLogin: {
@@ -37,7 +37,7 @@ const config: CapacitorConfig = {
     },
     SplashScreen: {
       launchShowDuration: 900,
-      backgroundColor: '#1d1040',
+      backgroundColor: '#131917',
       showSpinner: false,
     },
   },
